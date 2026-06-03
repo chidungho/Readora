@@ -1,13 +1,95 @@
 const Book = require('../models/book.model');
 
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 12;
+const MAX_LIMIT = 100;
+
+const sortOptions = {
+  newest: { createdAt: -1 },
+  price_asc: { price: 1, createdAt: -1 },
+  price_desc: { price: -1, createdAt: -1 },
+  popular: { sold: -1, rating: -1, createdAt: -1 },
+  rating: { rating: -1, reviewCount: -1, createdAt: -1 },
+};
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const parsePositiveInteger = (value, fallback) => {
+  const number = Number.parseInt(value, 10);
+
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+};
+
+const parseFiniteNumber = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+};
+
+const buildBooksFilter = (query = {}) => {
+  const filter = {};
+  const search = typeof query.search === 'string' ? query.search.trim() : '';
+  const category = typeof query.category === 'string' ? query.category.trim() : '';
+  const minPrice = parseFiniteNumber(query.minPrice);
+  const maxPrice = parseFiniteNumber(query.maxPrice);
+  const rating = parseFiniteNumber(query.rating);
+
+  if (search) {
+    const searchRegex = new RegExp(escapeRegExp(search), 'i');
+    filter.$or = [{ title: searchRegex }, { author: searchRegex }];
+  }
+
+  if (category) {
+    filter.category = category;
+  }
+
+  if (minPrice !== null || maxPrice !== null) {
+    filter.price = {};
+
+    if (minPrice !== null) {
+      filter.price.$gte = minPrice;
+    }
+
+    if (maxPrice !== null) {
+      filter.price.$lte = maxPrice;
+    }
+  }
+
+  if (rating !== null) {
+    filter.rating = { $gte: rating };
+  }
+
+  return filter;
+};
+
 const getBooks = async (req, res, next) => {
   try {
-    const books = await Book.find({});
+    const query = req.query || {};
+    const page = parsePositiveInteger(query.page, DEFAULT_PAGE);
+    const requestedLimit = parsePositiveInteger(query.limit, DEFAULT_LIMIT);
+    const limit = Math.min(requestedLimit, MAX_LIMIT);
+    const skip = (page - 1) * limit;
+    const filter = buildBooksFilter(query);
+    const sort = sortOptions[query.sort] || sortOptions.newest;
+    const [books, total] = await Promise.all([
+      Book.find(filter).sort(sort).skip(skip).limit(limit),
+      Book.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
       message: 'Books fetched successfully',
       data: books,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     next(error);

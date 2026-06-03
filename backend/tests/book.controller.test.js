@@ -49,6 +49,45 @@ const withMockedBookMethod = async (methodName, mockFn, action) => {
   }
 };
 
+const withMockedBookMethods = async (methodMocks, action) => {
+  const originals = new Map();
+
+  for (const [methodName, mockFn] of Object.entries(methodMocks)) {
+    originals.set(methodName, {
+      hadOwnMethod: Object.prototype.hasOwnProperty.call(Book, methodName),
+      originalMethod: Book[methodName],
+    });
+    Book[methodName] = mockFn;
+  }
+
+  try {
+    return await action();
+  } finally {
+    for (const [methodName, original] of originals.entries()) {
+      if (original.hadOwnMethod) {
+        Book[methodName] = original.originalMethod;
+      } else {
+        delete Book[methodName];
+      }
+    }
+  }
+};
+
+const createBookQueryMock = (books, calls = {}) => ({
+  sort(sortOptions) {
+    calls.sort = sortOptions;
+    return this;
+  },
+  skip(skipCount) {
+    calls.skip = skipCount;
+    return this;
+  },
+  limit(limitCount) {
+    calls.limit = limitCount;
+    return Promise.resolve(books);
+  },
+});
+
 test('Book schema uses required fields, defaults, and timestamps', () => {
   const requiredFields = ['title', 'author', 'price', 'category'];
   const optionalFields = ['description', 'originalPrice', 'image', 'coverImage'];
@@ -92,8 +131,18 @@ test('Book controller exports all requested handlers', () => {
 
 test('getBooks returns a success response with data', async () => {
   const books = [{ title: 'Nha gia kim' }];
+  const calls = {};
 
-  await withMockedBookMethod('find', async () => books, async () => {
+  await withMockedBookMethods({
+    find: (filter) => {
+      calls.filter = filter;
+      return createBookQueryMock(books, calls);
+    },
+    countDocuments: async (filter) => {
+      calls.countFilter = filter;
+      return 1;
+    },
+  }, async () => {
     const res = await callController(bookController.getBooks);
 
     assert.equal(res.statusCode, 200);
@@ -101,8 +150,92 @@ test('getBooks returns a success response with data', async () => {
       success: true,
       message: 'Books fetched successfully',
       data: books,
+      pagination: {
+        page: 1,
+        limit: 12,
+        total: 1,
+        totalPages: 1,
+      },
+    });
+    assert.deepEqual(calls.filter, {});
+    assert.deepEqual(calls.countFilter, {});
+  });
+});
+
+test('getBooks builds search, category, price, rating, sort, and pagination query', async () => {
+  const books = [{ title: 'Clean Code' }];
+  const calls = {};
+
+  await withMockedBookMethods({
+    find: (filter) => {
+      calls.filter = filter;
+      return createBookQueryMock(books, calls);
+    },
+    countDocuments: async (filter) => {
+      calls.countFilter = filter;
+      return 25;
+    },
+  }, async () => {
+    const res = await callController(bookController.getBooks, {
+      query: {
+        search: 'clean',
+        category: 'Cong nghe',
+        minPrice: '50000',
+        maxPrice: '200000',
+        rating: '4.5',
+        sort: 'price_asc',
+        page: '2',
+        limit: '10',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(calls.filter.category, 'Cong nghe');
+    assert.deepEqual(calls.filter.price, { $gte: 50000, $lte: 200000 });
+    assert.deepEqual(calls.filter.rating, { $gte: 4.5 });
+    assert.equal(calls.filter.$or.length, 2);
+    assert.equal(calls.filter.$or[0].title.source, 'clean');
+    assert.equal(calls.filter.$or[0].title.flags, 'i');
+    assert.equal(calls.filter.$or[1].author.source, 'clean');
+    assert.deepEqual(calls.countFilter, calls.filter);
+    assert.deepEqual(calls.sort, { price: 1, createdAt: -1 });
+    assert.equal(calls.skip, 10);
+    assert.equal(calls.limit, 10);
+    assert.deepEqual(res.payload, {
+      success: true,
+      message: 'Books fetched successfully',
+      data: books,
+      pagination: {
+        page: 2,
+        limit: 10,
+        total: 25,
+        totalPages: 3,
+      },
     });
   });
+});
+
+test('getBooks supports popular, rating, and price descending sort aliases', async () => {
+  const expectedSorts = [
+    ['popular', { sold: -1, rating: -1, createdAt: -1 }],
+    ['rating', { rating: -1, reviewCount: -1, createdAt: -1 }],
+    ['price_desc', { price: -1, createdAt: -1 }],
+  ];
+
+  for (const [sort, expectedSort] of expectedSorts) {
+    const calls = {};
+
+    await withMockedBookMethods({
+      find: () => createBookQueryMock([], calls),
+      countDocuments: async () => 0,
+    }, async () => {
+      await callController(bookController.getBooks, {
+        query: { sort },
+      });
+
+      assert.deepEqual(calls.sort, expectedSort);
+    });
+  }
 });
 
 test('getBookById returns a success response with one book', async () => {

@@ -20,7 +20,7 @@ function LoginPage() {
 
       localStorage.setItem("readora_token", data.token);
       localStorage.setItem("readora_user", JSON.stringify(data.user));
-      navigate("/");
+      navigate(data.user?.role === "admin" ? "/admin" : "/");
     } catch (authError) {
       setError(authError.message);
     } finally {

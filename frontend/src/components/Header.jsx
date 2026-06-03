@@ -1,6 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../hooks/useTheme";
+import {
+  CART_STORAGE_KEY,
+  CART_UPDATED_EVENT,
+  getCartCount,
+} from "../services/cartService";
+import {
+  buildBooksQueryParams,
+  parseBooksQuery,
+} from "../utils/booksQuery";
 
 const navItems = [
   { label: "Trang chủ", path: "/" },
@@ -35,28 +44,62 @@ function Header() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const [headerSearch, setHeaderSearch] = useState("");
+  const [isHeaderSearchDirty, setIsHeaderSearchDirty] = useState(false);
   const [user, setUser] = useState(getStoredUser);
+  const [cartCount, setCartCount] = useState(getCartCount);
   const isAccountRoute = ["/login", "/register"].includes(location.pathname);
+  const routeSearch = useMemo(() => {
+    if (location.pathname !== "/books") {
+      return "";
+    }
+
+    return parseBooksQuery(new URLSearchParams(location.search)).search;
+  }, [location.pathname, location.search]);
+  const headerSearchValue =
+    location.pathname === "/books" && !isHeaderSearchDirty
+      ? routeSearch
+      : headerSearch;
 
   useEffect(() => {
     const syncUser = () => {
       setUser(getStoredUser());
     };
 
-    window.addEventListener("storage", syncUser);
+    const syncCart = () => {
+      setCartCount(getCartCount());
+    };
+
+    const syncStorage = (event) => {
+      syncUser();
+
+      if (!event.key || event.key === CART_STORAGE_KEY) {
+        syncCart();
+      }
+    };
+
+    window.addEventListener("storage", syncStorage);
+    window.addEventListener(CART_UPDATED_EVENT, syncCart);
 
     return () => {
-      window.removeEventListener("storage", syncUser);
+      window.removeEventListener("storage", syncStorage);
+      window.removeEventListener(CART_UPDATED_EVENT, syncCart);
     };
   }, []);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();
+    const keyword = headerSearchValue.trim();
 
-    const keyword = headerSearch.trim();
-    const query = keyword ? `?q=${encodeURIComponent(keyword)}` : "";
+    const searchQuery = buildBooksQueryParams(new URLSearchParams(), {
+      search: keyword,
+    }).toString();
 
-    navigate(`/books${query}`);
+    setHeaderSearch(keyword);
+    setIsHeaderSearchDirty(false);
+    navigate({
+      pathname: "/books",
+      search: searchQuery ? `?${searchQuery}` : "",
+    });
   };
 
   const handleLogout = () => {
@@ -65,6 +108,8 @@ function Header() {
     setUser(null);
     navigate("/login");
   };
+
+  const displayCartCount = cartCount > 99 ? "99+" : cartCount;
 
   return (
     <header className="site-header">
@@ -96,8 +141,11 @@ function Header() {
           <input
             id="header-search"
             type="search"
-            value={headerSearch}
-            onChange={(event) => setHeaderSearch(event.target.value)}
+            value={headerSearchValue}
+            onChange={(event) => {
+              setIsHeaderSearchDirty(true);
+              setHeaderSearch(event.target.value);
+            }}
             placeholder="Tìm sách, tác giả..."
           />
           <button type="submit">Tìm</button>
@@ -110,12 +158,40 @@ function Header() {
             }
             to="/cart"
           >
-            Giỏ hàng <span className="cart-badge">0</span>
+            Giỏ hàng{" "}
+            <span
+              className="cart-badge"
+              aria-label={`${cartCount} sản phẩm trong giỏ`}
+            >
+              {displayCartCount}
+            </span>
           </NavLink>
 
           {user ? (
             <div className="account-menu">
               <span className="account-user">{user.name || user.email}</span>
+              <Link
+                className={
+                  location.pathname === "/orders"
+                    ? "account-link account-link--active"
+                    : "account-link"
+                }
+                to="/orders"
+              >
+                Đơn hàng
+              </Link>
+              {user.role === "admin" && (
+                <Link
+                  className={
+                    location.pathname.startsWith("/admin")
+                      ? "account-link account-link--active"
+                      : "account-link"
+                  }
+                  to="/admin"
+                >
+                  Admin
+                </Link>
+              )}
               <button
                 className="account-link account-link--button"
                 type="button"

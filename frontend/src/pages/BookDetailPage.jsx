@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import { FALLBACK_COVER_IMAGE, getBookById } from "../services/api";
+import ReviewSection from "../components/ReviewSection";
+import { addToCart } from "../services/cartService";
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || value === "") {
@@ -45,6 +47,8 @@ function BookDetailPage() {
   const [book, setBook] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [cartMessage, setCartMessage] = useState("");
+  const [reviewUpdateKey, setReviewUpdateKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -81,6 +85,20 @@ function BookDetailPage() {
       controller.abort();
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!cartMessage) {
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setCartMessage("");
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [cartMessage]);
 
   if (loading) {
     return (
@@ -128,8 +146,18 @@ function BookDetailPage() {
 
   const coverImage = book.coverImage || FALLBACK_COVER_IMAGE;
   const originalPrice = Number(book.originalPrice);
+  const stock = Number(book.stock);
   const hasOriginalPrice =
     Number.isFinite(originalPrice) && originalPrice > Number(book.price);
+  const canAddToCart = !Number.isFinite(stock) || stock > 0;
+  const handleAddToCart = () => {
+    if (!canAddToCart) {
+      return;
+    }
+
+    addToCart(book);
+    setCartMessage("Đã thêm vào giỏ");
+  };
 
   return (
     <Layout>
@@ -174,15 +202,27 @@ function BookDetailPage() {
             </div>
 
             <div className="hero-actions">
-              <Link className="button button--primary" to="/cart">
+              <button
+                className="button button--primary"
+                type="button"
+                onClick={handleAddToCart}
+                disabled={!canAddToCart}
+              >
                 Thêm vào giỏ
-              </Link>
+              </button>
               <Link className="button button--secondary" to="/books">
                 Quay lại danh sách
               </Link>
             </div>
+            {cartMessage && (
+              <p className="cart-feedback" role="status" aria-live="polite">
+                {cartMessage}
+              </p>
+            )}
           </div>
         </div>
+
+        <ReviewSection key={reviewUpdateKey} bookId={id} onReviewSubmitted={() => setReviewUpdateKey((k) => k + 1)} />
       </section>
     </Layout>
   );

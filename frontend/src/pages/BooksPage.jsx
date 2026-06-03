@@ -1,8 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import BookCard from "../components/BookCard";
 import Layout from "../layouts/Layout";
-import { getBooks, getCategories } from "../services/api";
+import { getBooksPage, getCategories } from "../services/api";
+import {
+  buildBooksQueryParams,
+  parseBooksQuery,
+} from "../utils/booksQuery";
+
+const PAGE_SIZE = 9;
+
+const defaultPagination = {
+  page: 1,
+  limit: PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+};
 
 const ratingOptions = [
   { label: "Tất cả đánh giá", value: "0" },
@@ -11,67 +24,95 @@ const ratingOptions = [
   { label: "Từ 4.8 sao", value: "4.8" },
 ];
 
-const normalizeText = (value) =>
-  value
-    .toLocaleLowerCase("vi-VN")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-const getBookDate = (book) => {
-  const timestamp = new Date(book.publishedAt || book.createdAt).getTime();
-
-  return Number.isFinite(timestamp) ? timestamp : 0;
-};
-
-const getBookPrice = (book, fallback) => {
-  const price = Number(book.price);
-
-  return Number.isFinite(price) ? price : fallback;
-};
-
-function toggleFilterValue(currentValues, value) {
-  if (currentValues.includes(value)) {
-    return currentValues.filter((currentValue) => currentValue !== value);
-  }
-
-  return [...currentValues, value];
-}
+const sortOptions = [
+  { label: "Phổ biến", value: "popular" },
+  { label: "Đánh giá cao", value: "rating" },
+  { label: "Giá thấp đến cao", value: "price_asc" },
+  { label: "Giá cao đến thấp", value: "price_desc" },
+  { label: "Mới nhất", value: "newest" },
+];
 
 function BooksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryFromUrl = searchParams.get("q") ?? "";
+  const booksQuery = useMemo(
+    () => parseBooksQuery(searchParams),
+    [searchParams],
+  );
+  const {
+    search: queryFromUrl,
+    category: selectedCategory,
+    rating: minimumRating,
+    minPrice,
+    maxPrice,
+    sort: sortBy,
+    page,
+  } = booksQuery;
   const [books, setBooks] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [minimumRating, setMinimumRating] = useState("0");
-  const [selectedConditions, setSelectedConditions] = useState([]);
-  const [sortBy, setSortBy] = useState("popular");
+  const [searchInput, setSearchInput] = useState(queryFromUrl);
+  const [isSearchComposing, setIsSearchComposing] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
+  const [pagination, setPagination] = useState(defaultPagination);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const skipSearchInputSyncRef = useRef(false);
+  const isSearchComposingRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
 
-    const loadBooksPageData = async () => {
-      setLoading(true);
-      setError("");
-
+    const loadCategories = async () => {
       try {
-        const [nextBooks, nextCategories] = await Promise.all([
-          getBooks({ signal: controller.signal }),
-          getCategories({ signal: controller.signal }),
-        ]);
+        const nextCategories = await getCategories({ signal: controller.signal });
 
         if (isActive) {
-          setBooks(nextBooks);
           setCategories(nextCategories);
         }
       } catch (fetchError) {
         if (fetchError.name !== "AbortError" && isActive) {
-          setBooks([]);
           setCategories([]);
+        }
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isActive = true;
+
+    const loadBooks = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const result = await getBooksPage({
+          search: queryFromUrl.trim(),
+          category: selectedCategory,
+          minPrice,
+          maxPrice,
+          rating: minimumRating === "0" ? "" : minimumRating,
+          sort: sortBy,
+          page,
+          limit: PAGE_SIZE,
+          signal: controller.signal,
+        });
+
+        if (isActive) {
+          setBooks(result.books);
+          setPagination(result.pagination);
+        }
+      } catch (fetchError) {
+        if (fetchError.name !== "AbortError" && isActive) {
+          setBooks([]);
+          setPagination(defaultPagination);
           setError(fetchError.message || "Không thể tải danh sách sách.");
         }
       } finally {
@@ -81,21 +122,29 @@ function BooksPage() {
       }
     };
 
-    loadBooksPageData();
+    loadBooks();
 
     return () => {
       isActive = false;
       controller.abort();
     };
-  }, []);
+  }, [
+    maxPrice,
+    minPrice,
+    minimumRating,
+    page,
+    queryFromUrl,
+    selectedCategory,
+    sortBy,
+  ]);
 
   const categoryOptions = useMemo(() => {
     const apiCategories = categories
       .map((category) => category.name)
       .filter(Boolean);
-    const bookCategories = books.map((book) => book.category).filter(Boolean);
+    const fallbackCategories = books.map((book) => book.category).filter(Boolean);
 
-    return [...new Set([...apiCategories, ...bookCategories])];
+    return [...new Set([...apiCategories, ...fallbackCategories])];
   }, [books, categories]);
 
   const categoryHighlights = useMemo(
@@ -103,98 +152,120 @@ function BooksPage() {
       categoryOptions.map((category) => {
         const apiCategory = categories.find((item) => item.name === category);
         const apiCount = Number(apiCategory?.bookCount);
-        const bookCount = books.filter((book) => book.category === category).length;
 
         return {
           name: category,
-          count: Number.isFinite(apiCount) && apiCount > 0 ? apiCount : bookCount,
+          count: Number.isFinite(apiCount) && apiCount > 0 ? apiCount : 0,
         };
       }),
-    [books, categories, categoryOptions],
+    [categories, categoryOptions],
   );
 
-  const conditionOptions = useMemo(
-    () => [...new Set(books.map((book) => book.condition).filter(Boolean))],
-    [books],
-  );
+  const applyBooksQuery = useCallback(
+    (updates, options = {}) => {
+      const nextSearchParams = buildBooksQueryParams(
+        searchParams,
+        updates,
+        options,
+      );
 
-  const filteredBooks = useMemo(() => {
-    const keyword = normalizeText(queryFromUrl.trim());
-    const ratingNumber = Number(minimumRating);
+      if (nextSearchParams.toString() === searchParams.toString()) {
+        return;
+      }
 
-    return books
-      .filter((book) => {
-        const searchableBook = normalizeText(
-          `${book.title} ${book.author} ${book.category} ${book.description}`,
-        );
-        const matchesSearch = !keyword || searchableBook.includes(keyword);
-        const matchesCategory =
-          selectedCategories.length === 0 ||
-          selectedCategories.includes(book.category);
-        const matchesRating = Number(book.rating) >= ratingNumber;
-        const matchesCondition =
-          selectedConditions.length === 0 ||
-          selectedConditions.includes(book.condition);
+      if (Object.prototype.hasOwnProperty.call(updates, "search")) {
+        skipSearchInputSyncRef.current = true;
+      }
 
-        return (
-          matchesSearch &&
-          matchesCategory &&
-          matchesRating &&
-          matchesCondition
-        );
-      })
-      .sort((firstBook, secondBook) => {
-        if (sortBy === "price-asc") {
-          return (
-            getBookPrice(firstBook, Number.MAX_SAFE_INTEGER) -
-            getBookPrice(secondBook, Number.MAX_SAFE_INTEGER)
-          );
-        }
-
-        if (sortBy === "price-desc") {
-          return (
-            getBookPrice(secondBook, Number.NEGATIVE_INFINITY) -
-            getBookPrice(firstBook, Number.NEGATIVE_INFINITY)
-          );
-        }
-
-        if (sortBy === "newest") {
-          return getBookDate(secondBook) - getBookDate(firstBook);
-        }
-
-        return (
-          Number(secondBook.sold) - Number(firstBook.sold) ||
-          Number(secondBook.rating) - Number(firstBook.rating)
-        );
+      setSearchParams(nextSearchParams, {
+        replace: options.replace ?? false,
       });
-  }, [
-    books,
-    minimumRating,
-    queryFromUrl,
-    selectedCategories,
-    selectedConditions,
-    sortBy,
-  ]);
+    },
+    [searchParams, setSearchParams],
+  );
 
-  const updateSearchTerm = (value) => {
-    const nextSearchParams = new URLSearchParams(searchParams);
-
-    if (value) {
-      nextSearchParams.set("q", value);
-    } else {
-      nextSearchParams.delete("q");
+  useEffect(() => {
+    if (skipSearchInputSyncRef.current) {
+      skipSearchInputSyncRef.current = false;
+      return;
     }
 
-    setSearchParams(nextSearchParams);
+    if (!isSearchComposingRef.current) {
+      setSearchInput(queryFromUrl);
+    }
+  }, [queryFromUrl]);
+
+  useEffect(() => {
+    if (isSearchComposing) {
+      return undefined;
+    }
+
+    const debounceTimer = window.setTimeout(() => {
+      applyBooksQuery(
+        {
+          search: searchInput,
+        },
+        {
+          replace: true,
+        },
+      );
+    }, 400);
+
+    return () => {
+      window.clearTimeout(debounceTimer);
+    };
+  }, [applyBooksQuery, isSearchComposing, searchInput]);
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    applyBooksQuery({ search: searchInput });
+  };
+
+  const handleSearchCompositionStart = () => {
+    isSearchComposingRef.current = true;
+    setIsSearchComposing(true);
+  };
+
+  const handleSearchCompositionEnd = (event) => {
+    isSearchComposingRef.current = false;
+    setIsSearchComposing(false);
+    setSearchInput(event.currentTarget.value);
+  };
+
+  const updateSelectedCategory = (value) => {
+    applyBooksQuery({ category: value });
+  };
+
+  const updateMinimumRating = (value) => {
+    applyBooksQuery({ rating: value });
+  };
+
+  const updateMinPrice = (value) => {
+    applyBooksQuery({ minPrice: value });
+  };
+
+  const updateMaxPrice = (value) => {
+    applyBooksQuery({ maxPrice: value });
+  };
+
+  const updateSort = (value) => {
+    applyBooksQuery({ sort: value });
+  };
+
+  const updatePage = (value) => {
+    applyBooksQuery({ page: value }, { resetPage: false });
   };
 
   const resetFilters = () => {
-    updateSearchTerm("");
-    setSelectedCategories([]);
-    setMinimumRating("0");
-    setSelectedConditions([]);
-    setSortBy("popular");
+    skipSearchInputSyncRef.current = true;
+    setSearchInput("");
+    setSearchParams(new URLSearchParams());
   };
+
+  const totalPages = Math.max(pagination.totalPages, 1);
+  const currentPage = Math.min(page, totalPages);
+  const canGoPrevious = currentPage > 1 && !loading;
+  const canGoNext = currentPage < totalPages && !loading;
 
   return (
     <Layout>
@@ -222,13 +293,17 @@ function BooksPage() {
               <div className="category-strip">
                 {categoryHighlights.map((category) => (
                   <button
-                    className="category-chip"
+                    className={`category-chip${
+                      selectedCategory === category.name ? " is-active" : ""
+                    }`}
                     key={category.name}
                     type="button"
-                    onClick={() => setSelectedCategories([category.name])}
+                    onClick={() => updateSelectedCategory(category.name)}
                   >
                     <span>{category.name}</span>
-                    <strong>{category.count} sách</strong>
+                    <strong>
+                      {category.count > 0 ? `${category.count} sách` : "Xem sách"}
+                    </strong>
                   </button>
                 ))}
               </div>
@@ -236,26 +311,30 @@ function BooksPage() {
           )}
 
           <div className="books-toolbar">
-            <label className="books-search">
+            <form className="books-search" onSubmit={handleSearchSubmit}>
               <span>Tìm sách</span>
               <input
                 type="search"
-                value={queryFromUrl}
-                onChange={(event) => updateSearchTerm(event.target.value)}
-                placeholder="Nhập tên sách, tác giả, danh mục..."
+                aria-label="Tìm sách"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                onCompositionStart={handleSearchCompositionStart}
+                onCompositionEnd={handleSearchCompositionEnd}
+                placeholder="Nhập tên sách hoặc tác giả..."
               />
-            </label>
+            </form>
 
             <label className="sort-control">
               <span>Sắp xếp</span>
               <select
                 value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
+                onChange={(event) => updateSort(event.target.value)}
               >
-                <option value="popular">Phổ biến</option>
-                <option value="price-asc">Giá thấp đến cao</option>
-                <option value="price-desc">Giá cao đến thấp</option>
-                <option value="newest">Mới nhất</option>
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -289,22 +368,56 @@ function BooksPage() {
               {categoryOptions.length > 0 && (
                 <fieldset className="filter-group">
                   <legend>Danh mục</legend>
+                  <label className="filter-option">
+                    <input
+                      type="radio"
+                      name="category"
+                      checked={selectedCategory === ""}
+                      onChange={() => updateSelectedCategory("")}
+                    />
+                    <span>Tất cả danh mục</span>
+                  </label>
                   {categoryOptions.map((category) => (
                     <label className="filter-option" key={category}>
                       <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(category)}
-                        onChange={() =>
-                          setSelectedCategories((currentCategories) =>
-                            toggleFilterValue(currentCategories, category),
-                          )
-                        }
+                        type="radio"
+                        name="category"
+                        checked={selectedCategory === category}
+                        onChange={() => updateSelectedCategory(category)}
                       />
                       <span>{category}</span>
                     </label>
                   ))}
                 </fieldset>
               )}
+
+              <fieldset className="filter-group">
+                <legend>Khoảng giá</legend>
+                <div className="price-filter-grid">
+                  <label>
+                    <span>Từ</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={minPrice}
+                      onChange={(event) => updateMinPrice(event.target.value)}
+                      placeholder="0"
+                    />
+                  </label>
+                  <label>
+                    <span>Đến</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1000"
+                      value={maxPrice}
+                      onChange={(event) => updateMaxPrice(event.target.value)}
+                      placeholder="200000"
+                    />
+                  </label>
+                </div>
+              </fieldset>
 
               <fieldset className="filter-group">
                 <legend>Đánh giá</legend>
@@ -315,40 +428,28 @@ function BooksPage() {
                       name="rating"
                       value={rating.value}
                       checked={minimumRating === rating.value}
-                      onChange={(event) => setMinimumRating(event.target.value)}
+                      onChange={(event) => updateMinimumRating(event.target.value)}
                     />
                     <span>{rating.label}</span>
                   </label>
                 ))}
               </fieldset>
-
-              {conditionOptions.length > 0 && (
-                <fieldset className="filter-group">
-                  <legend>Tình trạng</legend>
-                  {conditionOptions.map((condition) => (
-                    <label className="filter-option" key={condition}>
-                      <input
-                        type="checkbox"
-                        checked={selectedConditions.includes(condition)}
-                        onChange={() =>
-                          setSelectedConditions((currentConditions) =>
-                            toggleFilterValue(currentConditions, condition),
-                          )
-                        }
-                      />
-                      <span>{condition}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              )}
             </aside>
 
-            <section className="books-results-panel" aria-live="polite">
+            <section
+              className="books-results-panel"
+              aria-busy={loading}
+              aria-live="polite"
+            >
               <div className="results-summary">
                 <strong>
-                  {loading ? "Đang tải sách..." : `${filteredBooks.length} sách phù hợp`}
+                  {loading
+                    ? "Đang tải sách..."
+                    : `${pagination.total} sách phù hợp`}
                 </strong>
-                <span>Dữ liệu từ Readora API</span>
+                <span>
+                  Trang {currentPage} / {totalPages}
+                </span>
               </div>
 
               {loading && (
@@ -365,15 +466,39 @@ function BooksPage() {
                 </div>
               )}
 
-              {!loading && !error && filteredBooks.length > 0 && (
-                <div className={`book-grid books-results books-results--${viewMode}`}>
-                  {filteredBooks.map((book) => (
-                    <BookCard key={book._id} book={book} />
-                  ))}
-                </div>
+              {!loading && !error && books.length > 0 && (
+                <>
+                  <div className={`book-grid books-results books-results--${viewMode}`}>
+                    {books.map((book) => (
+                      <BookCard key={book._id} book={book} viewMode={viewMode} />
+                    ))}
+                  </div>
+
+                  <nav className="books-pagination" aria-label="Phân trang sách">
+                    <button
+                      className="button button--secondary"
+                      type="button"
+                      onClick={() => updatePage(Math.max(1, currentPage - 1))}
+                      disabled={!canGoPrevious}
+                    >
+                      Trước
+                    </button>
+                    <span className="pagination-status">
+                      Trang {currentPage} / {totalPages}
+                    </span>
+                    <button
+                      className="button button--secondary"
+                      type="button"
+                      onClick={() => updatePage(currentPage + 1)}
+                      disabled={!canGoNext}
+                    >
+                      Sau
+                    </button>
+                  </nav>
+                </>
               )}
 
-              {!loading && !error && filteredBooks.length === 0 && (
+              {!loading && !error && books.length === 0 && (
                 <div className="empty-state empty-state--inline">
                   <p className="eyebrow">Không có kết quả</p>
                   <h2>Chưa tìm thấy sách phù hợp</h2>

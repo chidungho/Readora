@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { FALLBACK_COVER_IMAGE } from "../services/api";
 
 const formatCurrency = (value) => {
@@ -36,8 +36,10 @@ const formatStock = (value) => {
   return stock > 0 ? `Còn ${stock} cuốn` : "Tạm hết hàng";
 };
 
-function BookCard({ book }) {
+function BookCard({ book, viewMode = "grid" }) {
   const bookId = book._id || book.id;
+  const cardViewClass =
+    viewMode === "list" ? "book-card--list" : "book-card--grid";
   const coverImage = book.coverImage || book.image || FALLBACK_COVER_IMAGE;
   const title = book.title || "Sách đang cập nhật";
   const author = book.author || "Readora";
@@ -48,20 +50,64 @@ function BookCard({ book }) {
   const originalPrice = Number(book.originalPrice);
   const hasOriginalPrice =
     Number.isFinite(originalPrice) && originalPrice > Number(book.price);
+  const detailPath = bookId ? `/books/${bookId}` : "/books";
+
+  const cover = (
+    <div className="book-card__cover">
+      <img
+        src={coverImage}
+        alt={`Bìa sách ${title}`}
+        onError={(event) => {
+          event.currentTarget.onerror = null;
+          event.currentTarget.src = FALLBACK_COVER_IMAGE;
+        }}
+      />
+    </div>
+  );
+
+  const details = (
+    <div className="book-card__content">
+      <p className="book-card__category">{category}</p>
+      <h3>{title}</h3>
+      <p className="book-card__author">Tác giả: {author}</p>
+      <p className="book-card__description">{description}</p>
+
+      <div className="book-card__meta">
+        <span>{formatRating(book.rating)}</span>
+        <span>{formatStock(book.stock)}</span>
+      </div>
+    </div>
+  );
+
+  const footer = (
+    <div className="book-card__footer">
+      <div className="book-card__prices">
+        <strong>{formattedPrice}</strong>
+        {hasOriginalPrice && (
+          <span className="book-card__original-price">
+            {formatCurrency(originalPrice)}
+          </span>
+        )}
+      </div>
+      <Link to={detailPath} className="book-card__button">
+        Xem chi tiết
+      </Link>
+    </div>
+  );
+
+  if (viewMode === "list") {
+    return (
+      <article className={`book-card ${cardViewClass}`}>
+        {cover}
+        {details}
+        {footer}
+      </article>
+    );
+  }
 
   return (
-    <article className="book-card">
-      <div className="book-card__cover">
-        <img
-          src={coverImage}
-          alt={`Bìa sách ${title}`}
-          onError={(event) => {
-            event.currentTarget.onerror = null;
-            event.currentTarget.src = FALLBACK_COVER_IMAGE;
-          }}
-        />
-      </div>
-
+    <article className={`book-card ${cardViewClass}`}>
+      {cover}
       <div className="book-card__content">
         <p className="book-card__category">{category}</p>
         <h3>{title}</h3>
@@ -73,22 +119,7 @@ function BookCard({ book }) {
           <span>{formatStock(book.stock)}</span>
         </div>
 
-        <div className="book-card__footer">
-          <div className="book-card__prices">
-            <strong>{formattedPrice}</strong>
-            {hasOriginalPrice && (
-              <span className="book-card__original-price">
-                {formatCurrency(originalPrice)}
-              </span>
-            )}
-          </div>
-          <Link
-            to={bookId ? `/books/${bookId}` : "/books"}
-            className="book-card__button"
-          >
-            Xem chi tiết
-          </Link>
-        </div>
+        {footer}
       </div>
     </article>
   );
