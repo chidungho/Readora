@@ -2,6 +2,7 @@ const Order = require('../models/order.model');
 
 const requiredAddressFields = ['fullName', 'phone', 'address', 'city'];
 const cancellableStatuses = ['pending', 'confirmed'];
+const allowedPaymentMethods = ['cod', 'bank_transfer'];
 
 const isBlank = (value) => !value || !String(value).trim();
 
@@ -46,6 +47,19 @@ const normalizeShippingAddress = (shippingAddress = {}) => {
 const calculateTotalAmount = (items) =>
   items.reduce((total, item) => total + item.price * item.quantity, 0);
 
+const createOrderCode = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+  return `${timestamp}${randomPart}`;
+};
+
+const normalizePaymentMethod = (paymentMethod = 'cod') => {
+  const normalizedMethod = String(paymentMethod || 'cod').trim();
+
+  return allowedPaymentMethods.includes(normalizedMethod) ? normalizedMethod : null;
+};
+
 const createOrder = async (req, res, next) => {
   try {
     const items = Array.isArray(req.body.items)
@@ -68,12 +82,23 @@ const createOrder = async (req, res, next) => {
       });
     }
 
+    const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
+
+    if (!paymentMethod) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment method',
+      });
+    }
+
     const order = await Order.create({
       user: req.user._id,
       items,
       shippingAddress,
+      orderCode: createOrderCode(),
       totalAmount: calculateTotalAmount(items),
-      paymentMethod: 'cod',
+      paymentMethod,
+      paymentStatus: 'unpaid',
     });
 
     return res.status(201).json({
@@ -167,6 +192,8 @@ const cancelOrder = async (req, res, next) => {
 };
 
 module.exports = {
+  allowedPaymentMethods,
+  createOrderCode,
   createOrder,
   getMyOrders,
   getOrderById,

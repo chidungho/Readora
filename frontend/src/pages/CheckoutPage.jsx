@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Layout from "../layouts/Layout";
-import { FALLBACK_COVER_IMAGE, createOrder } from "../services/api";
+import {
+  SEPAY_ACCOUNT,
+  SEPAY_ACCOUNT_NAME,
+  SEPAY_BANK,
+  createSepayQrUrl,
+} from "../config/sepay";
+import { FALLBACK_COVER_IMAGE, createOrder, getMyOrders } from "../services/api";
 import { clearCart, getCart } from "../services/cartService";
 
 const formatCurrency = (value) => {
@@ -29,8 +35,12 @@ function CheckoutPage() {
     address: "",
     city: "",
   });
+  const [paymentMethod, setPaymentMethod] = useState("cod");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdOrder, setCreatedOrder] = useState(null);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const cartTotal = useMemo(() => getCartTotal(cartItems), [cartItems]);
   const cartCount = useMemo(
@@ -53,7 +63,7 @@ function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
-      await createOrder({
+      const order = await createOrder({
         items: cartItems.map((item) => ({
           book: item.id,
           title: item.title,
@@ -62,9 +72,16 @@ function CheckoutPage() {
           coverImage: item.coverImage,
         })),
         shippingAddress,
+        paymentMethod,
       });
 
       clearCart();
+      if (order.paymentMethod === "bank_transfer") {
+        setCreatedOrder(order);
+        setStatusMessage("Vui lòng chuyển khoản đúng số tiền và nội dung bên dưới.");
+        return;
+      }
+
       navigate("/orders", {
         state: {
           checkoutMessage: "Đặt hàng thành công. Đơn hàng của bạn đang chờ xác nhận.",
@@ -76,6 +93,103 @@ function CheckoutPage() {
       setIsSubmitting(false);
     }
   };
+
+  const handleCheckPaymentStatus = async () => {
+    if (!createdOrder) {
+      return;
+    }
+
+    setIsCheckingStatus(true);
+    setStatusMessage("");
+
+    try {
+      const orders = await getMyOrders();
+      const latestOrder = orders.find((order) => order._id === createdOrder._id);
+
+      if (latestOrder) {
+        setCreatedOrder(latestOrder);
+      }
+
+      setStatusMessage(
+        latestOrder?.paymentStatus === "paid"
+          ? "Readora đã ghi nhận thanh toán."
+          : "Chưa ghi nhận thanh toán. Vui lòng thử lại sau vài phút.",
+      );
+    } catch (statusError) {
+      setStatusMessage(statusError.message || "Không thể kiểm tra trạng thái thanh toán.");
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  if (createdOrder?.paymentMethod === "bank_transfer") {
+    const transferContent = `READORA-${createdOrder.orderCode}`;
+    const qrUrl = createSepayQrUrl({
+      amount: createdOrder.totalAmount,
+      orderCode: createdOrder.orderCode,
+    });
+
+    return (
+      <Layout>
+        <section className="page-section checkout-page">
+          <div className="container">
+            <div className="empty-state empty-state--centered payment-confirmation">
+              <p className="eyebrow">Thanh toán chuyển khoản</p>
+              <h1>Quét QR SePay để thanh toán</h1>
+              <p>Đơn hàng #{createdOrder.orderCode} đang chờ thanh toán.</p>
+
+              <img className="payment-confirmation__qr" src={qrUrl} alt="QR thanh toán SePay" />
+
+              <dl className="bank-transfer-box payment-confirmation__details">
+                <div>
+                  <dt>Số tiền</dt>
+                  <dd>{formatCurrency(createdOrder.totalAmount)}</dd>
+                </div>
+                <div>
+                  <dt>Nội dung chuyển khoản</dt>
+                  <dd>{transferContent}</dd>
+                </div>
+                <div>
+                  <dt>Ngân hàng</dt>
+                  <dd>{SEPAY_BANK}</dd>
+                </div>
+                <div>
+                  <dt>Số tài khoản</dt>
+                  <dd>{SEPAY_ACCOUNT}</dd>
+                </div>
+                <div>
+                  <dt>Chủ tài khoản</dt>
+                  <dd>{SEPAY_ACCOUNT_NAME}</dd>
+                </div>
+                <div>
+                  <dt>Trạng thái</dt>
+                  <dd>
+                    {createdOrder.paymentStatus === "paid" ? "Đã thanh toán" : "Chưa thanh toán"}
+                  </dd>
+                </div>
+              </dl>
+
+              {statusMessage && <p className="cart-feedback">{statusMessage}</p>}
+
+              <div className="checkout-actions">
+                <button
+                  className="button button--primary"
+                  type="button"
+                  disabled={isCheckingStatus}
+                  onClick={handleCheckPaymentStatus}
+                >
+                  {isCheckingStatus ? "Đang kiểm tra..." : "Tôi đã chuyển khoản"}
+                </button>
+                <Link className="button button--secondary" to="/orders">
+                  Xem đơn hàng
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </Layout>
+    );
+  }
 
   if (cartItems.length === 0) {
     return (
@@ -103,7 +217,7 @@ function CheckoutPage() {
           <div className="page-header cart-page__header">
             <p className="eyebrow">Thanh toán</p>
             <h1>Thông tin nhận hàng</h1>
-            <p>Readora chỉ hỗ trợ thanh toán khi nhận hàng cho phase này.</p>
+            <p>Chọn COD hoặc chuyển khoản ngân hàng để hoàn tất đơn hàng.</p>
           </div>
 
           <div className="checkout-layout">
@@ -168,13 +282,67 @@ function CheckoutPage() {
                 />
               </label>
 
+              <fieldset className="payment-methods">
+                <legend>Phương thức thanh toán</legend>
+                <label className="payment-methods__option">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="cod"
+                    checked={paymentMethod === "cod"}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                  />
+                  <span>
+                    <strong>COD</strong>
+                    <small>Thanh toán khi nhận hàng.</small>
+                  </span>
+                </label>
+                <label className="payment-methods__option">
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value="bank_transfer"
+                    checked={paymentMethod === "bank_transfer"}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                  />
+                  <span>
+                    <strong>Chuyển khoản ngân hàng</strong>
+                    <small>Quét QR SePay sau khi đặt hàng, không cần nhập API key.</small>
+                  </span>
+                </label>
+              </fieldset>
+
+              {paymentMethod === "bank_transfer" && (
+                <div className="bank-transfer-box" aria-live="polite">
+                  <p className="eyebrow">Thông tin chuyển khoản mẫu</p>
+                  <dl>
+                    <div>
+                      <dt>Ngân hàng</dt>
+                      <dd>{SEPAY_BANK}</dd>
+                    </div>
+                    <div>
+                      <dt>Số tài khoản</dt>
+                      <dd>{SEPAY_ACCOUNT}</dd>
+                    </div>
+                    <div>
+                      <dt>Chủ tài khoản</dt>
+                      <dd>{SEPAY_ACCOUNT_NAME}</dd>
+                    </div>
+                    <div>
+                      <dt>Nội dung</dt>
+                      <dd>READORA-MADON sau khi tạo đơn</dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+
               <div className="checkout-actions">
                 <button
                   className="button button--primary"
                   type="submit"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
+                  {isSubmitting ? "Đang tạo đơn..." : "Đặt hàng"}
                 </button>
                 <Link className="button button--secondary" to="/cart">
                   Quay lại giỏ hàng
@@ -210,7 +378,7 @@ function CheckoutPage() {
               </div>
               <div className="cart-summary__row">
                 <span>Thanh toán</span>
-                <strong>COD</strong>
+                <strong>{paymentMethod === "cod" ? "COD" : "Chuyển khoản"}</strong>
               </div>
               <div className="cart-summary__row cart-summary__row--total">
                 <span>Tổng cộng</span>

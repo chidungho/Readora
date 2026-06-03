@@ -82,6 +82,11 @@ test('Order schema uses requested fields, defaults, and timestamps', () => {
   assert.equal(Order.schema.path('shippingAddress.address').isRequired, true);
   assert.equal(Order.schema.path('shippingAddress.city').isRequired, true);
   assert.equal(Order.schema.path('totalAmount').isRequired, true);
+  assert.equal(Order.schema.path('orderCode').isRequired, true);
+  assert.equal(Order.schema.path('paymentProvider').instance, 'String');
+  assert.equal(Order.schema.path('paymentTransactionId').instance, 'String');
+  assert.equal(Order.schema.path('paidAt').instance, 'Date');
+  assert.equal(Order.schema.path('paymentNote').instance, 'String');
   assert.equal(Order.schema.path('cancelledAt').instance, 'Date');
   assert.equal(Order.schema.path('cancelReason').instance, 'String');
   assert.deepEqual(Order.schema.path('status').enumValues, [
@@ -96,12 +101,19 @@ test('Order schema uses requested fields, defaults, and timestamps', () => {
     user: '507f1f77bcf86cd799439012',
     items: cartItems,
     shippingAddress,
+    orderCode: 'ABC123',
     totalAmount: 240000,
   });
 
   assert.equal(doc.status, 'pending');
+  assert.deepEqual(Order.schema.path('paymentMethod').enumValues, ['cod', 'bank_transfer']);
+  assert.deepEqual(Order.schema.path('paymentStatus').enumValues, ['unpaid', 'paid']);
   assert.equal(doc.paymentMethod, 'cod');
-  assert.equal(doc.isPaid, false);
+  assert.equal(doc.paymentStatus, 'unpaid');
+  assert.equal(doc.paymentProvider, '');
+  assert.equal(doc.paymentTransactionId, '');
+  assert.equal(doc.paidAt, null);
+  assert.equal(doc.paymentNote, '');
   assert.equal(Order.schema.options.timestamps, true);
 });
 
@@ -137,16 +149,19 @@ test('createOrder saves the authenticated user, cart items, address, and total',
     totalAmount: 240000,
     status: 'pending',
     paymentMethod: 'cod',
-    isPaid: false,
+    paymentStatus: 'unpaid',
   };
 
   await withMockedOrderMethod('create', async (data) => {
+    assert.match(data.orderCode, /^[A-Z0-9]+$/);
     assert.deepEqual(data, {
       user: 'user-1',
       items: cartItems,
       shippingAddress,
+      orderCode: data.orderCode,
       totalAmount: 240000,
       paymentMethod: 'cod',
+      paymentStatus: 'unpaid',
     });
 
     return createdOrder;
@@ -161,6 +176,62 @@ test('createOrder saves the authenticated user, cart items, address, and total',
       success: true,
       message: 'Order created successfully',
       data: createdOrder,
+    });
+  });
+});
+
+test('createOrder saves bank transfer orders as unpaid', async () => {
+  const orderController = loadOrderController();
+  const createdOrder = {
+    _id: 'order-bank-1',
+    user: 'user-1',
+    items: cartItems,
+    shippingAddress,
+    totalAmount: 240000,
+    status: 'pending',
+    paymentMethod: 'bank_transfer',
+    paymentStatus: 'unpaid',
+  };
+
+  await withMockedOrderMethod('create', async (data) => {
+    assert.match(data.orderCode, /^[A-Z0-9]+$/);
+    assert.deepEqual(data, {
+      user: 'user-1',
+      items: cartItems,
+      shippingAddress,
+      orderCode: data.orderCode,
+      totalAmount: 240000,
+      paymentMethod: 'bank_transfer',
+      paymentStatus: 'unpaid',
+    });
+
+    return createdOrder;
+  }, async () => {
+    const res = await callController(orderController.createOrder, {
+      user: { _id: 'user-1' },
+      body: { items: cartItems, shippingAddress, paymentMethod: 'bank_transfer' },
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.deepEqual(res.payload.data, createdOrder);
+  });
+});
+
+test('createOrder returns 400 for invalid payment method', async () => {
+  const orderController = loadOrderController();
+
+  await withMockedOrderMethod('create', async () => {
+    throw new Error('Order.create should not be called');
+  }, async () => {
+    const res = await callController(orderController.createOrder, {
+      user: { _id: 'user-1' },
+      body: { items: cartItems, shippingAddress, paymentMethod: 'momo' },
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, {
+      success: false,
+      message: 'Invalid payment method',
     });
   });
 });

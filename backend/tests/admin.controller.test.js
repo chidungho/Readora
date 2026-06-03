@@ -52,6 +52,7 @@ const withMockedOrderMethod = async (methodName, mockFn, action) => {
 test('Admin controller exports order handlers', () => {
   assert.equal(typeof adminController.getAdminOrders, 'function');
   assert.equal(typeof adminController.updateAdminOrderStatus, 'function');
+  assert.deepEqual(adminController.allowedPaymentStatuses, ['unpaid', 'paid']);
 });
 
 test('getAdminOrders returns all orders sorted newest first with user info', async () => {
@@ -124,6 +125,37 @@ test('updateAdminOrderStatus updates order status and returns the order', async 
     const res = await callController(adminController.updateAdminOrderStatus, {
       params: { id: 'order-1' },
       body: { status: 'shipped' },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.payload, {
+      success: true,
+      message: 'Order status updated successfully',
+      data: updatedOrder,
+    });
+  });
+});
+
+test('updateAdminOrderStatus updates payment status and returns the order', async () => {
+  const updatedOrder = {
+    _id: 'order-1',
+    paymentStatus: 'paid',
+  };
+
+  await withMockedOrderMethod('findByIdAndUpdate', async (id, updateData, options) => {
+    assert.equal(id, 'order-1');
+    assert.equal(updateData.paymentStatus, 'paid');
+    assert.ok(updateData.paidAt instanceof Date);
+    assert.deepEqual(options, {
+      new: true,
+      runValidators: true,
+    });
+
+    return updatedOrder;
+  }, async () => {
+    const res = await callController(adminController.updateAdminOrderStatus, {
+      params: { id: 'order-1' },
+      body: { paymentStatus: 'paid' },
     });
 
     assert.equal(res.statusCode, 200);

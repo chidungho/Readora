@@ -14,6 +14,16 @@ const statusLabels = {
 
 const cancellableStatuses = ["pending", "confirmed"];
 
+const paymentMethodLabels = {
+  cod: "COD",
+  bank_transfer: "Chuyển khoản",
+};
+
+const paymentStatusLabels = {
+  unpaid: "Chưa thanh toán",
+  paid: "Đã thanh toán",
+};
+
 const canCancelOrder = (status) => cancellableStatuses.includes(status);
 
 const formatCurrency = (value) => {
@@ -123,7 +133,7 @@ function OrdersPage() {
           <div className="page-header orders-page__header">
             <p className="eyebrow">Đơn hàng</p>
             <h1>Lịch sử đơn hàng</h1>
-            <p>Theo dõi các đơn COD đã đặt bằng tài khoản Readora của bạn.</p>
+            <p>Theo dõi đơn hàng và trạng thái thanh toán của bạn.</p>
           </div>
 
           {feedbackMessage && (
@@ -169,7 +179,7 @@ function OrdersPage() {
                   <div className="order-card__header">
                     <div>
                       <p className="eyebrow">Mã đơn</p>
-                      <h2>#{String(order._id).slice(-8).toUpperCase()}</h2>
+                      <h2>#{order.orderCode || String(order._id).slice(-8).toUpperCase()}</h2>
                       <span>{formatDate(order.createdAt)}</span>
                     </div>
                     <div className="order-card__status">
@@ -178,7 +188,8 @@ function OrdersPage() {
                       >
                         {statusLabels[order.status] || order.status}
                       </strong>
-                      <span>{order.paymentMethod === "cod" ? "COD" : order.paymentMethod}</span>
+                      <span>{paymentMethodLabels[order.paymentMethod] || order.paymentMethod}</span>
+                      <span>{paymentStatusLabels[order.paymentStatus] || "Chưa thanh toán"}</span>
                     </div>
                   </div>
 

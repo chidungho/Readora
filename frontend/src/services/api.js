@@ -317,9 +317,12 @@ export const getAdminOrders = async (options = {}) => {
   return Array.isArray(data) ? data : [];
 };
 
-export const updateAdminOrderStatus = async (id, status) =>
-  sendAdminJson(`/admin/orders/${id}/status`, "PATCH", { status });
+export const updateAdminOrderStatus = async (id, statusOrPayload) => {
+  const payload =
+    typeof statusOrPayload === "string" ? { status: statusOrPayload } : statusOrPayload;
 
+  return sendAdminJson(`/admin/orders/${id}/status`, "PATCH", payload);
+};
 
 // Reviews
 export const getBookReviews = async (bookId) => {
@@ -328,12 +331,22 @@ export const getBookReviews = async (bookId) => {
 };
 
 export async function createBookReview(bookId, payload) {
-  return request(`/books/${bookId}/reviews`, {
+  const token = localStorage.getItem("readora_token");
+
+  const response = await fetch(`${baseURL}/books/${bookId}/reviews`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
-    auth: true,
   });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Không gửi được đánh giá");
+  }
+
+  return data;
 }

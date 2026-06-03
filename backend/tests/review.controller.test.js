@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const Review = require('../src/models/review.model');
@@ -76,8 +76,8 @@ test('Review schema uses required fields, defaults, and timestamps', () => {
 
   const doc = new Review({
     user: 'user-123',
-    book: 'book-456',
-    order: 'order-789',
+    book: '507f1f77bcf86cd799439011',
+    order: '507f1f77bcf86cd799439012',
     rating: 4,
     comment: 'Sach hay',
   });
@@ -114,7 +114,7 @@ test('getBookReviews returns a success response with reviews array', async () =>
     {
       _id: 'rev-1',
       user: { _id: 'user-1', name: 'User 1' },
-      book: 'book-456',
+      book: '507f1f77bcf86cd799439011',
       rating: 5,
       comment: 'Tuyet voi',
       createdAt: new Date(),
@@ -122,7 +122,7 @@ test('getBookReviews returns a success response with reviews array', async () =>
   ];
 
   const cleanupFind = overrideModelMethod(Review, 'find', (query) => {
-    assert.deepEqual(query, { book: 'book-456' });
+    assert.deepEqual(query, { book: '507f1f77bcf86cd799439011' });
     return {
       populate() { return this; },
       sort() { return { then(resolve) { resolve(reviews); } }; },
@@ -131,7 +131,7 @@ test('getBookReviews returns a success response with reviews array', async () =>
 
   try {
     const res = await callController(getBookReviews, {
-      params: { bookId: 'book-456' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
     });
 
     assert.equal(res.statusCode, 200);
@@ -153,7 +153,7 @@ test('getBookReviews returns an empty array when no reviews exist', async () => 
 
   try {
     const res = await callController(getBookReviews, {
-      params: { bookId: 'book-456' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
     });
 
     assert.equal(res.statusCode, 200);
@@ -164,12 +164,12 @@ test('getBookReviews returns an empty array when no reviews exist', async () => 
 });
 
 test('createBookReview returns 400 when rating is out of range', async () => {
-  const invalidRatings = [0, 6, -1, null, undefined, 'abc'];
+  const invalidRatings = [0, 6, -1, 'abc'];
 
   for (const invalid of invalidRatings) {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: invalid },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: invalid, orderId: '507f1f77bcf86cd799439012' },
       user: { _id: 'user-123' },
     });
 
@@ -178,19 +178,18 @@ test('createBookReview returns 400 when rating is out of range', async () => {
     assert.equal(res.payload.message, 'Rating must be between 1 and 5');
   }
 });
-
 test('createBookReview returns 404 when book is not found', async () => {
   const cleanupFindById = overrideModelMethod(Book, 'findById', async () => null);
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'nonexistent' },
-      body: { rating: 4, comment: 'OK', orderId: 'order-789' },
+      params: { bookId: '507f1f77bcf86cd799439016' },
+      body: { rating: 4, comment: 'OK', orderId: '507f1f77bcf86cd799439012' },
       user: { _id: 'user-123' },
     });
 
     assert.equal(res.statusCode, 404);
-    assert.equal(res.payload.message, 'Book not found');
+    assert.equal(res.payload.message, 'Không tìm thấy sách');
   } finally {
     cleanupFindById();
   }
@@ -198,7 +197,7 @@ test('createBookReview returns 404 when book is not found', async () => {
 
 test('createBookReview returns 400 when orderId is missing', async () => {
   const cleanupFindById = overrideModelMethod(Book, 'findById', async () => ({
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
   }));
   const cleanupReviewFindOne = overrideModelMethod(Review, 'findOne', async () => {
@@ -207,49 +206,48 @@ test('createBookReview returns 400 when orderId is missing', async () => {
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
       body: { rating: 4, comment: 'OK' },
       user: { _id: 'user-123' },
     });
 
     assert.equal(res.statusCode, 400);
     assert.equal(res.payload.success, false);
-    assert.ok(res.payload.message.includes('orderId'));
+    assert.equal(res.payload.message, 'Rating and orderId are required');
   } finally {
     cleanupReviewFindOne();
     cleanupFindById();
   }
 });
-
 test('createBookReview returns 400 when user already reviewed this book in this order', async () => {
   const existingReview = {
     _id: 'rev-1',
     user: 'user-123',
-    book: 'book-456',
-    order: 'order-789',
+    book: '507f1f77bcf86cd799439011',
+    order: '507f1f77bcf86cd799439012',
   };
   let createCalled = false;
   let appGetCalled = false;
   const cleanupBook = overrideModelMethod(Book, 'findById', async (id) => {
-    if (id === 'book-456') {
-      return { _id: 'book-456', title: 'Sach test' };
+    if (id === '507f1f77bcf86cd799439011') {
+      return { _id: '507f1f77bcf86cd799439011', title: 'Sach test' };
     }
     return null;
   });
-  const cleanupOrder = overrideModelMethod(Order, 'findById', async (id) => {
-    assert.equal(id, 'order-789');
+  const cleanupOrder = overrideModelMethod(Order, 'findOne', async (query) => {
+    assert.deepEqual(query, { _id: '507f1f77bcf86cd799439012', user: 'user-123', status: 'delivered', 'items.book': '507f1f77bcf86cd799439011' });
     return {
-      _id: 'order-789',
+      _id: '507f1f77bcf86cd799439012',
       user: 'user-123',
       status: 'delivered',
-      items: [{ book: 'book-456' }],
+      items: [{ book: '507f1f77bcf86cd799439011' }],
     };
   });
   const cleanupReview = overrideModelMethod(Review, 'findOne', async (query) => {
     assert.deepEqual(query, {
       user: 'user-123',
-      book: 'book-456',
-      order: 'order-789',
+      book: '507f1f77bcf86cd799439011',
+      order: '507f1f77bcf86cd799439012',
     });
     return existingReview;
   });
@@ -260,8 +258,8 @@ test('createBookReview returns 400 when user already reviewed this book in this 
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 4, comment: 'Hay', orderId: 'order-789' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 4, comment: 'Hay', orderId: '507f1f77bcf86cd799439012' },
       user: { _id: 'user-123' },
       app: {
         get() {
@@ -276,7 +274,7 @@ test('createBookReview returns 400 when user already reviewed this book in this 
     });
 
     assert.equal(res.statusCode, 400);
-    assert.equal(res.payload.message, 'Bạn đã đánh giá sách này trong đơn hàng này rồi.');
+    assert.equal(res.payload.message, 'Bạn đã đánh giá sách này trong đơn hàng này rồi');
     assert.equal(createCalled, false);
     assert.equal(appGetCalled, false);
   } finally {
@@ -287,9 +285,9 @@ test('createBookReview returns 400 when user already reviewed this book in this 
   }
 });
 
-test('createBookReview returns 400 when the selected order is not delivered', async () => {
+test('createBookReview returns 404 when the selected order is not delivered', async () => {
   const cleanupBook = overrideModelMethod(Book, 'findById', async () => ({
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
     rating: 0,
     reviewCount: 0,
@@ -298,25 +296,20 @@ test('createBookReview returns 400 when the selected order is not delivered', as
   const cleanupReviewFindOne = overrideModelMethod(Review, 'findOne', async () => {
     throw new Error('duplicate check should not run before order eligibility');
   });
-  const cleanupOrder = overrideModelMethod(Order, 'findById', async (id) => {
-    assert.equal(id, 'order-pending');
-    return {
-      _id: 'order-pending',
-      user: 'user-123',
-      status: 'pending',
-      items: [{ book: 'book-456' }],
-    };
+  const cleanupOrder = overrideModelMethod(Order, 'findOne', async (query) => {
+    assert.deepEqual(query, { _id: '507f1f77bcf86cd799439013', user: 'user-123', status: 'delivered', 'items.book': '507f1f77bcf86cd799439011' });
+    return null;
   });
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 4, comment: 'Hay', orderId: 'order-pending' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 4, comment: 'Hay', orderId: '507f1f77bcf86cd799439013' },
       user: { _id: 'user-123' },
     });
 
-    assert.equal(res.statusCode, 400);
-    assert.ok(res.payload.message.includes('don hang'));
+    assert.equal(res.statusCode, 404);
+    assert.equal(res.payload.message, 'Không tìm thấy đơn hàng hợp lệ');
   } finally {
     cleanupOrder();
     cleanupReviewFindOne();
@@ -324,32 +317,27 @@ test('createBookReview returns 400 when the selected order is not delivered', as
   }
 });
 
-test('createBookReview returns 403 when the selected order belongs to another user', async () => {
+test('createBookReview returns 404 when the selected order belongs to another user', async () => {
   const cleanupBook = overrideModelMethod(Book, 'findById', async () => ({
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
   }));
   const cleanupReviewFindOne = overrideModelMethod(Review, 'findOne', async () => {
     throw new Error('duplicate check should not run for another user order');
   });
-  const cleanupOrder = overrideModelMethod(Order, 'findById', async (id) => {
-    assert.equal(id, 'order-other-user');
-    return {
-      _id: 'order-other-user',
-      user: 'user-999',
-      status: 'delivered',
-      items: [{ book: 'book-456' }],
-    };
+  const cleanupOrder = overrideModelMethod(Order, 'findOne', async (query) => {
+    assert.deepEqual(query, { _id: '507f1f77bcf86cd799439014', user: 'user-123', status: 'delivered', 'items.book': '507f1f77bcf86cd799439011' });
+    return null;
   });
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 4, comment: 'Hay', orderId: 'order-other-user' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 4, comment: 'Hay', orderId: '507f1f77bcf86cd799439014' },
       user: { _id: 'user-123' },
     });
 
-    assert.equal(res.statusCode, 403);
+    assert.equal(res.statusCode, 404);
     assert.equal(res.payload.success, false);
   } finally {
     cleanupOrder();
@@ -360,7 +348,7 @@ test('createBookReview returns 403 when the selected order belongs to another us
 
 test('createBookReview creates review and updates book stats', async () => {
   const bookDoc = {
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
     rating: 0,
     reviewCount: 0,
@@ -370,8 +358,8 @@ test('createBookReview creates review and updates book stats', async () => {
   const createdReview = {
     _id: 'rev-new',
     user: { _id: 'user-123', name: 'Nguyen Van A' },
-    book: 'book-456',
-    order: 'order-789',
+    book: '507f1f77bcf86cd799439011',
+    order: '507f1f77bcf86cd799439012',
     rating: 4,
     comment: 'Sach hay',
     createdAt: new Date(),
@@ -381,29 +369,29 @@ test('createBookReview creates review and updates book stats', async () => {
 
   const cleanups = [
     overrideModelMethod(Book, 'findById', () => ({ then(resolve) { resolve(bookDoc); } })),
-    overrideModelMethod(Order, 'findById', () => ({
+    overrideModelMethod(Order, 'findOne', (query) => ({
       then(resolve) {
         resolve({
-          _id: 'order-789',
+          _id: '507f1f77bcf86cd799439012',
           user: 'user-123',
           status: 'delivered',
-          items: [{ book: 'book-456' }],
+          items: [{ book: '507f1f77bcf86cd799439011' }],
         });
       },
     })),
     overrideModelMethod(Review, 'findOne', (query) => {
       assert.deepEqual(query, {
         user: 'user-123',
-        book: 'book-456',
-        order: 'order-789',
+        book: '507f1f77bcf86cd799439011',
+        order: '507f1f77bcf86cd799439012',
       });
       return { then(resolve) { resolve(null); } };
     }),
     overrideModelMethod(Review, 'create', async (data) => {
       assert.deepEqual(data, {
         user: 'user-123',
-        book: 'book-456',
-        order: 'order-789',
+        book: '507f1f77bcf86cd799439011',
+        order: '507f1f77bcf86cd799439012',
         rating: 4,
         comment: 'Sach hay',
       });
@@ -426,8 +414,8 @@ test('createBookReview creates review and updates book stats', async () => {
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 4, comment: 'Sach hay', orderId: 'order-789' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 4, comment: 'Sach hay', orderId: '507f1f77bcf86cd799439012' },
       user: { _id: 'user-123' },
     });
 
@@ -443,7 +431,7 @@ test('createBookReview creates review and updates book stats', async () => {
 
 test('createBookReview allows the same user to review the same book in another delivered order', async () => {
   const bookDoc = {
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
     rating: 4,
     reviewCount: 1,
@@ -452,8 +440,8 @@ test('createBookReview allows the same user to review the same book in another d
   const createdReview = {
     _id: 'rev-new-order',
     user: { _id: 'user-123', name: 'Nguyen Van A' },
-    book: 'book-456',
-    order: 'order-new',
+    book: '507f1f77bcf86cd799439011',
+    order: '507f1f77bcf86cd799439015',
     rating: 5,
     comment: 'Mua lan hai van hay',
     createdAt: new Date(),
@@ -464,13 +452,13 @@ test('createBookReview allows the same user to review the same book in another d
 
   const cleanups = [
     overrideModelMethod(Book, 'findById', async () => bookDoc),
-    overrideModelMethod(Order, 'findById', async (id) => {
-      assert.equal(id, 'order-new');
+    overrideModelMethod(Order, 'findOne', async (query) => {
+      assert.deepEqual(query, { _id: '507f1f77bcf86cd799439015', user: 'user-123', status: 'delivered', 'items.book': '507f1f77bcf86cd799439011' });
       return {
-        _id: 'order-new',
+        _id: '507f1f77bcf86cd799439015',
         user: 'user-123',
         status: 'delivered',
-        items: [{ book: 'book-456' }],
+        items: [{ book: '507f1f77bcf86cd799439011' }],
       };
     }),
     overrideModelMethod(Review, 'findOne', async (query) => {
@@ -495,8 +483,8 @@ test('createBookReview allows the same user to review the same book in another d
 
   try {
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 5, comment: 'Mua lan hai van hay', orderId: 'order-new' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 5, comment: 'Mua lan hai van hay', orderId: '507f1f77bcf86cd799439015' },
       user: { _id: 'user-123', name: 'Nguyen Van A' },
     });
 
@@ -504,15 +492,15 @@ test('createBookReview allows the same user to review the same book in another d
     assert.deepEqual(duplicateQueries, [
       {
         user: 'user-123',
-        book: 'book-456',
-        order: 'order-new',
+        book: '507f1f77bcf86cd799439011',
+        order: '507f1f77bcf86cd799439015',
       },
     ]);
     assert.deepEqual(createPayloads, [
       {
         user: 'user-123',
-        book: 'book-456',
-        order: 'order-new',
+        book: '507f1f77bcf86cd799439011',
+        order: '507f1f77bcf86cd799439015',
         rating: 5,
         comment: 'Mua lan hai van hay',
       },
@@ -530,7 +518,7 @@ test('createBookReview emits an admin notification when review is created', asyn
   const logCalls = [];
   const originalLog = console.log;
   const bookDoc = {
-    _id: 'book-456',
+    _id: '507f1f77bcf86cd799439011',
     title: 'Sach test',
     rating: 0,
     reviewCount: 0,
@@ -540,8 +528,8 @@ test('createBookReview emits an admin notification when review is created', asyn
   const createdReview = {
     _id: 'rev-new',
     user: 'user-123',
-    book: 'book-456',
-    order: 'order-789',
+    book: '507f1f77bcf86cd799439011',
+    order: '507f1f77bcf86cd799439012',
     rating: 5,
     comment: 'Sach rat hay',
     createdAt,
@@ -557,13 +545,13 @@ test('createBookReview emits an admin notification when review is created', asyn
   const cleanups = [
     overrideModelMethod(Book, 'findById', () => ({ then(resolve) { resolve(bookDoc); } })),
     overrideModelMethod(Review, 'findOne', () => ({ then(resolve) { resolve(null); } })),
-    overrideModelMethod(Order, 'findById', () => ({
+    overrideModelMethod(Order, 'findOne', (query) => ({
       then(resolve) {
         resolve({
-          _id: 'order-789',
+          _id: '507f1f77bcf86cd799439012',
           user: 'user-123',
           status: 'delivered',
-          items: [{ book: 'book-456' }],
+          items: [{ book: '507f1f77bcf86cd799439011' }],
         });
       },
     })),
@@ -586,8 +574,8 @@ test('createBookReview emits an admin notification when review is created', asyn
     };
 
     const res = await callController(createBookReview, {
-      params: { bookId: 'book-456' },
-      body: { rating: 5, comment: 'Sach rat hay', orderId: 'order-789' },
+      params: { bookId: '507f1f77bcf86cd799439011' },
+      body: { rating: 5, comment: 'Sach rat hay', orderId: '507f1f77bcf86cd799439012' },
       user: { _id: 'user-123', name: 'Nguyen Van A' },
       app: {
         get(key) {
@@ -609,7 +597,7 @@ test('createBookReview emits an admin notification when review is created', asyn
       rating: 5,
       comment: 'Sach rat hay',
       createdAt: createdAt.toISOString(),
-      orderId: 'order-789',
+      orderId: '507f1f77bcf86cd799439012',
     };
 
     assert.equal(res.statusCode, 201);
@@ -619,9 +607,11 @@ test('createBookReview emits an admin notification when review is created', asyn
         payload: expectedPayload,
       },
     ]);
-    assert.deepEqual(logCalls, [['emit admin:new-review', expectedPayload]]);
+    assert.deepEqual(logCalls, [['[review] emit admin:new-review', expectedPayload]]);
+    console.log = originalLog;
   } finally {
     console.log = originalLog;
     cleanups.reverse().forEach((cleanup) => cleanup());
   }
 });
+

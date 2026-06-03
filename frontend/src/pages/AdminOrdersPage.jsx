@@ -9,6 +9,21 @@ const orderStatuses = [
   { value: "cancelled", label: "Da huy" },
 ];
 
+const paymentStatusOptions = [
+  { value: "unpaid", label: "Chua thanh toan" },
+  { value: "paid", label: "Da thanh toan" },
+];
+
+const paymentMethodLabels = {
+  cod: "COD",
+  bank_transfer: "Chuyen khoan",
+};
+
+const paymentStatusLabels = paymentStatusOptions.reduce((labels, status) => {
+  labels[status.value] = status.label;
+  return labels;
+}, {});
+
 const statusLabels = orderStatuses.reduce((labels, status) => {
   labels[status.value] = status.label;
   return labels;
@@ -86,13 +101,13 @@ function AdminOrdersPage() {
     };
   }, []);
 
-  const handleStatusChange = async (order, nextStatus) => {
+  const handleOrderUpdate = async (order, payload) => {
     setChangingOrderId(order._id);
     setMessage("");
     setError("");
 
     try {
-      await updateAdminOrderStatus(order._id, nextStatus);
+      await updateAdminOrderStatus(order._id, payload);
       await loadOrders();
       setMessage("Da cap nhat trang thai don hang.");
     } catch (statusError) {
@@ -101,6 +116,12 @@ function AdminOrdersPage() {
       setChangingOrderId("");
     }
   };
+
+  const handleStatusChange = (order, nextStatus) =>
+    handleOrderUpdate(order, { status: nextStatus });
+
+  const handlePaymentStatusChange = (order, nextPaymentStatus) =>
+    handleOrderUpdate(order, { paymentStatus: nextPaymentStatus });
 
   return (
     <section className="admin-page fade-up">
@@ -138,13 +159,14 @@ function AdminOrdersPage() {
                   <th>San pham</th>
                   <th>Ngay dat</th>
                   <th>Tong tien</th>
+                  <th>Thanh toan</th>
                   <th>Trang thai</th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map((order) => (
                   <tr key={order._id}>
-                    <td>#{String(order._id).slice(-8).toUpperCase()}</td>
+                    <td>#{order.orderCode || String(order._id).slice(-8).toUpperCase()}</td>
                     <td>
                       <strong>{order.user?.name || "Khach hang"}</strong>
                       <span>{order.user?.email || order.shippingAddress?.phone || ""}</span>
@@ -152,6 +174,25 @@ function AdminOrdersPage() {
                     <td>{(order.items || []).length} sach</td>
                     <td>{formatDate(order.createdAt)}</td>
                     <td>{formatCurrency(order.totalAmount)}</td>
+                    <td>
+                      <label className="admin-status-control">
+                        <span className="admin-status admin-status--payment">
+                          {paymentMethodLabels[order.paymentMethod] || order.paymentMethod || "COD"}
+                        </span>
+                        <select
+                          value={order.paymentStatus || "unpaid"}
+                          disabled={changingOrderId === order._id}
+                          onChange={(event) => handlePaymentStatusChange(order, event.target.value)}
+                        >
+                          {paymentStatusOptions.map((status) => (
+                            <option key={status.value} value={status.value}>
+                              {status.label}
+                            </option>
+                          ))}
+                        </select>
+                        <small>{paymentStatusLabels[order.paymentStatus] || "Chua thanh toan"}</small>
+                      </label>
+                    </td>
                     <td>
                       <label className="admin-status-control">
                         <span className={`admin-status admin-status--${order.status}`}>

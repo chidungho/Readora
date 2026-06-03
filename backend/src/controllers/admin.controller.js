@@ -7,6 +7,7 @@ const allowedOrderStatuses = [
   'delivered',
   'cancelled',
 ];
+const allowedPaymentStatuses = ['unpaid', 'paid'];
 
 const getAdminOrders = async (req, res, next) => {
   try {
@@ -26,19 +27,45 @@ const getAdminOrders = async (req, res, next) => {
 
 const updateAdminOrderStatus = async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { paymentStatus, status } = req.body;
 
-    if (!allowedOrderStatuses.includes(status)) {
+    if (status !== undefined && !allowedOrderStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid order status',
       });
     }
 
-    const updateData = {
-      status,
-      cancelledAt: status === 'cancelled' ? Date.now() : null,
-    };
+    if (paymentStatus !== undefined && !allowedPaymentStatuses.includes(paymentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid payment status',
+      });
+    }
+
+    if (status === undefined && paymentStatus === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'No order update provided',
+      });
+    }
+
+    const updateData = {};
+
+    if (status !== undefined) {
+      updateData.status = status;
+      updateData.cancelledAt = status === 'cancelled' ? Date.now() : null;
+    }
+
+    if (paymentStatus !== undefined) {
+      updateData.paymentStatus = paymentStatus;
+      updateData.paidAt = paymentStatus === 'paid' ? new Date() : null;
+
+      if (paymentStatus === 'unpaid') {
+        updateData.paymentProvider = '';
+        updateData.paymentTransactionId = '';
+      }
+    }
 
     const order = await Order.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
@@ -64,6 +91,7 @@ const updateAdminOrderStatus = async (req, res, next) => {
 
 module.exports = {
   allowedOrderStatuses,
+  allowedPaymentStatuses,
   getAdminOrders,
   updateAdminOrderStatus,
 };

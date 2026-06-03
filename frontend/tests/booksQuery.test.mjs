@@ -66,3 +66,33 @@ test("buildBooksQueryParams syncs filters, sort, and pagination in the URL", () 
 
   assert.equal(paged.get("page"), "2");
 });
+
+test("buildBooksQueryParams updates page without dropping active filters", () => {
+  const params = buildBooksQueryParams(
+    new URLSearchParams(
+      "search=t%C6%B0%20duy&category=K%C4%A9%20n%C4%83ng&rating=4&minPrice=50000&maxPrice=200000&sort=rating&page=1",
+    ),
+    { page: 2 },
+    { resetPage: false },
+  );
+
+  assert.equal(params.get("search"), "tư duy");
+  assert.equal(params.get("category"), "Kĩ năng");
+  assert.equal(params.get("rating"), "4");
+  assert.equal(params.get("minPrice"), "50000");
+  assert.equal(params.get("maxPrice"), "200000");
+  assert.equal(params.get("sort"), "rating");
+  assert.equal(params.get("page"), "2");
+});
+
+test("buildBooksQueryParams resets page only when filters change", () => {
+  const params = buildBooksQueryParams(
+    new URLSearchParams("search=t%C6%B0%20duy&category=K%C4%A9%20n%C4%83ng&sort=rating&page=3"),
+    { category: "Văn học" },
+  );
+
+  assert.equal(params.get("search"), "tư duy");
+  assert.equal(params.get("category"), "Văn học");
+  assert.equal(params.get("sort"), "rating");
+  assert.equal(params.has("page"), false);
+});

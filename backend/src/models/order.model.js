@@ -86,6 +86,14 @@ const orderSchema = new mongoose.Schema(
       required: true,
       min: 0,
     },
+    orderCode: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
@@ -93,12 +101,32 @@ const orderSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['cod'],
+      enum: ['cod', 'bank_transfer'],
       default: 'cod',
     },
-    isPaid: {
-      type: Boolean,
-      default: false,
+    paymentStatus: {
+      type: String,
+      enum: ['unpaid', 'paid'],
+      default: 'unpaid',
+    },
+    paymentProvider: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    paymentTransactionId: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+    paymentNote: {
+      type: String,
+      trim: true,
+      default: '',
     },
     cancelledAt: {
       type: Date,

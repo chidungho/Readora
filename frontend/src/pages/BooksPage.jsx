@@ -200,6 +200,10 @@ function BooksPage() {
       return undefined;
     }
 
+    if (searchInput.trim() === queryFromUrl) {
+      return undefined;
+    }
+
     const debounceTimer = window.setTimeout(() => {
       applyBooksQuery(
         {
@@ -214,7 +218,7 @@ function BooksPage() {
     return () => {
       window.clearTimeout(debounceTimer);
     };
-  }, [applyBooksQuery, isSearchComposing, searchInput]);
+  }, [applyBooksQuery, isSearchComposing, queryFromUrl, searchInput]);
 
   const handleSearchSubmit = (event) => {
     event.preventDefault();

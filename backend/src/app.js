@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth.routes');
 const bookRoutes = require('./routes/book.routes');
 const categoryRoutes = require('./routes/category.routes');
 const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
 const adminRoutes = require('./routes/admin.routes');
 const debugRoutes = require('./routes/debug.routes');
 const errorMiddleware = require('./middlewares/error.middleware');
@@ -24,6 +25,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
 if (process.env.NODE_ENV !== 'production') {
