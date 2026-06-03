@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const Review = require('../models/review.model');
 
 const PLACEHOLDER_TOKENS = [
   ['YOUR', 'USERNAME'].join('_'),
@@ -41,6 +42,7 @@ const connectDB = async () => {
 
     console.log(`process.env.MONGODB_URI: ${maskMongoUri(mongoUri)}`);
     await mongoose.connect(mongoUri);
+    await Review.syncIndexes();
     console.log('MongoDB Connected');
   } catch (error) {
     console.error(`MongoDB connection error: ${error.message}`);

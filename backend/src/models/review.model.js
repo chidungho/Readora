@@ -34,7 +34,7 @@ const reviewSchema = new mongoose.Schema(
   },
 );
 
-reviewSchema.index({ user: 1, book: 1 }, { unique: true });
+reviewSchema.index({ user: 1, book: 1, order: 1 }, { unique: true });
 
 const Review = mongoose.model('Review', reviewSchema);
 

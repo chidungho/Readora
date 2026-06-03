@@ -1472,9 +1472,16 @@
 .checkout-summary__item,
 .order-card__item {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
   align-items: start;
   gap: 12px;
+}
+
+.checkout-summary__item {
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+}
+
+.order-card__item {
+  grid-template-columns: 54px minmax(0, 1fr);
 }
 
 .order-card__item img {
@@ -1489,15 +1496,15 @@
   object-fit: cover;
 }
 
-.checkout-summary__item div,
-.order-card__item div {
+.checkout-summary__item > div,
+.order-card__item-info {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
 .checkout-summary__item strong,
-.order-card__item strong {
+.order-card__item-info strong {
   overflow: hidden;
   color: var(--color-text);
   font-weight: 800;
@@ -1506,7 +1513,7 @@
 }
 
 .checkout-summary__item span,
-.order-card__item span,
+.order-card__item-info span,
 .order-card__header span,
 .order-card__footer span,
 .order-card__footer p {
@@ -1645,8 +1652,18 @@
 }
 
 .order-card__item-review {
-  min-width: 120px;
-  text-align: right;
+  display: flex;
+  grid-column: 2;
+  justify-content: flex-start;
+  justify-self: start;
+  min-width: 0;
+  width: min(100%, 360px);
+  max-width: 360px;
+  text-align: left;
+}
+
+.order-card__item-review:empty {
+  display: none;
 }
 
 .order-review__trigger {
@@ -1688,33 +1705,44 @@
 
 .order-review__form {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 12px 14px;
-  margin-top: 8px;
+  max-width: 360px;
+  padding: 10px 12px;
+  margin-top: 0;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);
+  text-align: left;
 }
 
 .order-review__stars {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
-.order-review__stars span {
+.order-review__label {
+  flex: 0 0 auto;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-muted);
 }
 
 .order-review__star-group {
-  display: flex;
-  gap: 2px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .order-review__star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
   width: 28px;
   height: 28px;
   border: 0;
@@ -1766,6 +1794,8 @@
 
 .order-review__actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1876,6 +1906,7 @@ body[data-theme="dark"] .admin-shell {
 }
 
 .admin-topbar {
+  position: relative;
   display: flex;
   min-height: 68px;
   align-items: center;
@@ -1886,6 +1917,21 @@ body[data-theme="dark"] .admin-shell {
   background: var(--color-surface-strong);
   padding: 14px 18px;
   box-shadow: var(--shadow-card);
+}
+
+.admin-topbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.admin-topbar__email {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-topbar strong {
@@ -1904,6 +1950,181 @@ body[data-theme="dark"] .admin-shell {
 .admin-table td span {
   color: var(--color-muted);
   font-weight: 700;
+}
+
+.admin-notifications {
+  position: relative;
+}
+
+.admin-notifications__button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 12px;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 100ms ease-out;
+}
+
+.admin-notifications__button:hover {
+  border-color: color-mix(in srgb, var(--color-secondary) 38%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-notifications__button:active {
+  transform: scale(0.975);
+}
+
+.admin-notifications__icon,
+.admin-notifications__badge {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.admin-notifications__icon {
+  width: 22px;
+  height: 22px;
+  background: color-mix(in srgb, var(--color-secondary) 14%, var(--color-surface));
+  color: var(--color-secondary);
+}
+
+.admin-notifications__badge {
+  min-width: 24px;
+  height: 24px;
+  background: var(--color-primary);
+  color: var(--color-surface-strong);
+  font-size: 0.78rem;
+  padding: 0 7px;
+}
+
+.admin-notifications__button span,
+.admin-notification-toast span {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.admin-notifications__panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 32px));
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-soft);
+  padding: 14px;
+}
+
+.admin-notifications__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 10px;
+}
+
+.admin-notifications__panel-header strong {
+  font-size: 1.1rem;
+}
+
+.admin-notifications__panel-header button {
+  border: 0;
+  background: transparent;
+  color: var(--color-primary-dark);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.admin-notifications__empty {
+  color: var(--color-muted);
+  font-weight: 800;
+  padding: 14px 0 2px;
+}
+
+.admin-notifications__list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  list-style: none;
+}
+
+.admin-notifications__item {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  padding: 12px;
+}
+
+.admin-notifications__item div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-notifications__item strong {
+  font-size: 1rem;
+}
+
+.admin-notifications__item span {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-notifications__item p {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.admin-notifications__item small {
+  display: block;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.admin-notification-toast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 70;
+  display: grid;
+  width: min(360px, calc(100vw - 32px));
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-secondary) 34%, transparent);
+  border-radius: 8px;
+  background: var(--color-surface-strong);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-text);
+  padding: 14px 16px;
+}
+
+.admin-notification-toast strong {
+  color: var(--color-secondary);
+  font-size: 1rem;
+}
+
+.admin-notification-toast span {
+  color: var(--color-muted);
+  font-size: 0.94rem;
 }
 
 .admin-page {
@@ -2494,6 +2715,24 @@ body[data-theme="dark"] .admin-shell {
     text-align: left;
   }
 
+  .order-card__item {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .order-card__item img {
+    width: 48px;
+  }
+
+  .order-card__item-review {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+  }
+
+  .order-review__form {
+    max-width: none;
+  }
+
   .admin-shell {
     grid-template-columns: 1fr;
   }
@@ -2518,6 +2757,24 @@ body[data-theme="dark"] .admin-shell {
     flex-direction: column;
   }
 
+  .admin-topbar__actions {
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .admin-notifications__panel {
+    right: auto;
+    left: 0;
+  }
+
+  .admin-notification-toast {
+    top: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+
   .admin-stats,
   .admin-form__grid {
     grid-template-columns: 1fr;
@@ -2536,6 +2793,26 @@ body[data-theme="dark"] .admin-shell {
 }
 
 @media (max-width: 520px) {
+  .order-review__form {
+    padding: 10px;
+  }
+
+  .order-review__stars {
+    gap: 8px;
+  }
+
+  .order-review__star {
+    flex-basis: 26px;
+    width: 26px;
+    height: 26px;
+    font-size: 1.1rem;
+  }
+
+  .order-review__submit,
+  .order-review__cancel {
+    flex: 1 1 130px;
+  }
+
   .book-card--list {
     min-height: 0;
     grid-template-columns: 1fr;

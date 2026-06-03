@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import { FALLBACK_COVER_IMAGE, getBookById } from "../services/api";
-import ReviewSection from "../components/ReviewSection";
 import { addToCart } from "../services/cartService";
 
 const formatCurrency = (value) => {
@@ -48,7 +47,6 @@ function BookDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cartMessage, setCartMessage] = useState("");
-  const [reviewUpdateKey, setReviewUpdateKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -222,7 +220,6 @@ function BookDetailPage() {
           </div>
         </div>
 
-        <ReviewSection key={reviewUpdateKey} bookId={id} onReviewSubmitted={() => setReviewUpdateKey((k) => k + 1)} />
       </section>
     </Layout>
   );

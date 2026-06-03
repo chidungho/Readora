@@ -5,11 +5,11 @@ import { FALLBACK_COVER_IMAGE, cancelOrder, getMyOrders } from "../services/api"
 import OrderItemReview from "../components/OrderItemReview";
 
 const statusLabels = {
-  pending: "Chá» xÃ¡c nháº­n",
-  confirmed: "ÄÃ£ xÃ¡c nháº­n",
-  shipped: "Äang giao",
-  delivered: "ÄÃ£ giao",
-  cancelled: "ÄÃ£ há»§y",
+  pending: "Chờ xác nhận",
+  confirmed: "Đã xác nhận",
+  shipped: "Đang giao",
+  delivered: "Đã giao",
+  cancelled: "Đã hủy",
 };
 
 const cancellableStatuses = ["pending", "confirmed"];
@@ -20,7 +20,7 @@ const formatCurrency = (value) => {
   const price = Number(value);
 
   if (!Number.isFinite(price)) {
-    return "Äang cáº­p nháº­t";
+    return "Đang cập nhật";
   }
 
   return new Intl.NumberFormat("vi-VN", {
@@ -31,13 +31,13 @@ const formatCurrency = (value) => {
 
 const formatDate = (value) => {
   if (!value) {
-    return "Äang cáº­p nháº­t";
+    return "Đang cập nhật";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Äang cáº­p nháº­t";
+    return "Đang cập nhật";
   }
 
   return new Intl.DateTimeFormat("vi-VN", {
@@ -75,7 +75,7 @@ function OrdersPage() {
         }
       } catch (ordersError) {
         if (ordersError.name !== "AbortError" && isActive) {
-          setError(ordersError.message || "KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng.");
+          setError(ordersError.message || "Không thể tải đơn hàng.");
         }
       } finally {
         if (isActive) {
@@ -93,7 +93,7 @@ function OrdersPage() {
   }, []);
 
   const handleCancelOrder = async (order) => {
-    const confirmed = window.confirm("Báº¡n cháº¯c cháº¯n muá»‘n há»§y Ä‘Æ¡n hÃ ng nÃ y?");
+    const confirmed = window.confirm("Bạn chắc chắn muốn hủy đơn hàng này?");
 
     if (!confirmed) {
       return;
@@ -108,9 +108,9 @@ function OrdersPage() {
       const nextOrders = await getMyOrders();
 
       setOrders(nextOrders);
-      setFeedbackMessage("ÄÃ£ há»§y Ä‘Æ¡n hÃ ng");
+      setFeedbackMessage("Đã hủy đơn hàng");
     } catch (cancelOrderError) {
-      setCancelError(cancelOrderError.message || "KhÃ´ng thá»ƒ há»§y Ä‘Æ¡n hÃ ng.");
+      setCancelError(cancelOrderError.message || "Không thể hủy đơn hàng.");
     } finally {
       setCancellingOrderId("");
     }
@@ -121,9 +121,9 @@ function OrdersPage() {
       <section className="page-section orders-page">
         <div className="container">
           <div className="page-header orders-page__header">
-            <p className="eyebrow">ÄÆ¡n hÃ ng</p>
-            <h1>Lá»‹ch sá»­ Ä‘Æ¡n hÃ ng</h1>
-            <p>Theo dÃµi cÃ¡c Ä‘Æ¡n COD Ä‘Ã£ Ä‘áº·t báº±ng tÃ i khoáº£n Readora cá»§a báº¡n.</p>
+            <p className="eyebrow">Đơn hàng</p>
+            <h1>Lịch sử đơn hàng</h1>
+            <p>Theo dõi các đơn COD đã đặt bằng tài khoản Readora của bạn.</p>
           </div>
 
           {feedbackMessage && (
@@ -138,37 +138,37 @@ function OrdersPage() {
             </p>
           )}
 
-          {loading && <p className="state-message">Äang táº£i Ä‘Æ¡n hÃ ng...</p>}
+          {loading && <p className="state-message">Đang tải đơn hàng...</p>}
 
           {!loading && error && (
             <div className="empty-state">
-              <p className="eyebrow">Cáº§n Ä‘Äƒng nháº­p</p>
-              <h1>KhÃ´ng táº£i Ä‘Æ°á»£c Ä‘Æ¡n hÃ ng</h1>
+              <p className="eyebrow">Cần đăng nhập</p>
+              <h1>Không tải được đơn hàng</h1>
               <p>{error}</p>
               <Link className="button button--primary" to="/login">
-                ÄÄƒng nháº­p
+                Đăng nhập
               </Link>
             </div>
           )}
 
           {!loading && !error && orders.length === 0 && (
             <div className="empty-state">
-              <p className="eyebrow">ChÆ°a cÃ³ Ä‘Æ¡n</p>
-              <h1>Báº¡n chÆ°a Ä‘áº·t Ä‘Æ¡n hÃ ng nÃ o</h1>
-              <p>HÃ£y chá»n vÃ i cuá»‘n sÃ¡ch yÃªu thÃ­ch rá»“i quay láº¡i Ä‘Ã¢y Ä‘á»ƒ xem lá»‹ch sá»­.</p>
+              <p className="eyebrow">Chưa có đơn</p>
+              <h1>Bạn chưa đặt đơn hàng nào</h1>
+              <p>Hãy chọn vài cuốn sách yêu thích rồi quay lại đây để xem lịch sử.</p>
               <Link className="button button--primary" to="/books">
-                Mua sÃ¡ch
+                Mua sách
               </Link>
             </div>
           )}
 
           {!loading && !error && orders.length > 0 && (
-            <div className="orders-list" aria-label="Danh sÃ¡ch Ä‘Æ¡n hÃ ng">
+            <div className="orders-list" aria-label="Danh sách đơn hàng">
               {orders.map((order) => (
                 <article className="order-card" key={order._id}>
                   <div className="order-card__header">
                     <div>
-                      <p className="eyebrow">MÃ£ Ä‘Æ¡n</p>
+                      <p className="eyebrow">Mã đơn</p>
                       <h2>#{String(order._id).slice(-8).toUpperCase()}</h2>
                       <span>{formatDate(order.createdAt)}</span>
                     </div>
@@ -187,7 +187,7 @@ function OrdersPage() {
                       <div className="order-card__item" key={`${order._id}-${item.book}`}>
                         <img
                           src={item.coverImage || FALLBACK_COVER_IMAGE}
-                          alt={`BÃ¬a sÃ¡ch ${item.title}`}
+                          alt={`Bìa sách ${item.title}`}
                           onError={(event) => {
                             event.currentTarget.onerror = null;
                             event.currentTarget.src = FALLBACK_COVER_IMAGE;
@@ -199,27 +199,30 @@ function OrdersPage() {
                             {item.quantity} x {formatCurrency(item.price)}
                           </span>
                         </div>
-                        <div className="order-card__item-review">
-                          <OrderItemReview
-                            bookId={typeof item.book === "string" ? item.book : item.book?._id}
-                            orderStatus={order.status}
-                          />
-                        </div>
+                        {order.status === "delivered" && (
+                          <div className="order-card__item-review">
+                            <OrderItemReview
+                              bookId={typeof item.book === "string" ? item.book : item.book?._id}
+                              orderId={order._id}
+                              orderStatus={order.status}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
 
                   <div className="order-card__footer">
                     <div>
-                      <span>NgÆ°á»i nháº­n</span>
+                      <span>Người nhận</span>
                       <strong>{order.shippingAddress?.fullName}</strong>
                       <p>
-                        {order.shippingAddress?.phone} Â· {order.shippingAddress?.address},{" "}
+                        {order.shippingAddress?.phone} · {order.shippingAddress?.address},{" "}
                         {order.shippingAddress?.city}
                       </p>
                     </div>
                     <div className="order-card__total">
-                      <span>Tá»•ng tiá»n</span>
+                      <span>Tổng tiền</span>
                       <strong>{formatCurrency(order.totalAmount)}</strong>
                       {canCancelOrder(order.status) && (
                         <button
@@ -228,7 +231,7 @@ function OrdersPage() {
                           type="button"
                           onClick={() => handleCancelOrder(order)}
                         >
-                          {cancellingOrderId === order._id ? "Äang há»§y..." : "Há»§y Ä‘Æ¡n"}
+                          {cancellingOrderId === order._id ? "Đang hủy..." : "Hủy đơn"}
                         </button>
                       )}
                     </div>

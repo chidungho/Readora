@@ -19,7 +19,15 @@ const getCachedProfile = async () => {
   return profilePromise;
 };
 
-function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
+const getEntityId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (value._id) return getEntityId(value._id);
+  if (value.id) return getEntityId(value.id);
+  return String(value);
+};
+
+function OrderItemReview({ bookId, orderId, orderStatus, onReviewComplete }) {
   const [state, setState] = useState("loading"); // loading | can_review | reviewed | hidden
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(0);
@@ -27,6 +35,8 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const mountedRef = useRef(true);
+  const canReviewOrder = orderStatus === "delivered";
+  const isReviewed = state === "reviewed";
 
   useEffect(() => {
     mountedRef.current = true;
@@ -36,8 +46,7 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
   }, []);
 
   useEffect(() => {
-    if (orderStatus !== "delivered") {
-      setState("hidden");
+    if (!canReviewOrder || !bookId || !orderId) {
       return;
     }
 
@@ -52,10 +61,16 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
         if (cancelled || !mountedRef.current) return;
 
         const existing = reviews.find(
-          (r) => r.user?._id === profile._id
+          (r) => r.user?._id === profile._id && getEntityId(r.order) === orderId
         );
 
-        setState(existing ? "reviewed" : "can_review");
+        if (existing) {
+          setState("reviewed");
+          setShowForm(false);
+          setError("");
+        } else {
+          setState("can_review");
+        }
       } catch {
         if (!cancelled && mountedRef.current) {
           setState("hidden");
@@ -68,21 +83,28 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
     return () => {
       cancelled = true;
     };
-  }, [bookId, orderStatus]);
+  }, [bookId, canReviewOrder, orderId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
+
+    if (isReviewed) {
+      console.log("[review ui] review already exists, skip submit", bookId);
+      setShowForm(false);
+      return;
+    }
 
     if (rating === 0) {
       setError("Vui lòng chọn số sao.");
       return;
     }
 
+    console.log("[review ui] submitting review", bookId);
     setSubmitting(true);
-    setError("");
 
     try {
-      await createBookReview(bookId, { rating, comment });
+      await createBookReview(bookId, { rating, comment, orderId });
       if (!mountedRef.current) return;
       setState("reviewed");
       setShowForm(false);
@@ -93,11 +115,15 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
       if (!mountedRef.current) return;
       const msg = err.message || "";
 
-      // Backend returns "Ban da danh gia sach nay roi" for duplicates
-      if (msg.includes("danh gia sach nay roi")) {
+      if (
+        msg.includes("đánh giá sách này trong đơn hàng này") ||
+        msg.includes("danh gia sach nay trong don hang nay")
+      ) {
         setState("reviewed");
         setShowForm(false);
         setError("");
+        setRating(0);
+        setComment("");
       } else {
         setError(msg || "Không thể gửi đánh giá.");
       }
@@ -113,10 +139,10 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
     setComment("");
   };
 
-  if (state === "hidden" || state === "loading") return null;
+  if (!canReviewOrder || !bookId || !orderId || state === "hidden" || state === "loading") return null;
 
-  if (state === "reviewed") {
-    return <span className="order-review__badge">✓ Đã đánh giá</span>;
+  if (isReviewed) {
+    return <span className="order-review__badge">Đã đánh giá</span>;
   }
 
   if (!showForm) {
@@ -134,7 +160,7 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
   return (
     <form className="order-review__form" onSubmit={handleSubmit}>
       <div className="order-review__stars">
-        <span>Chất lượng:</span>
+        <span className="order-review__label">Chất lượng:</span>
         <div className="order-review__star-group">
           {[1, 2, 3, 4, 5].map((star) => (
             <button
@@ -167,7 +193,7 @@ function OrderItemReview({ bookId, orderStatus, onReviewComplete }) {
         <button
           type="submit"
           className="button button--primary order-review__submit"
-          disabled={submitting || rating === 0}
+          disabled={submitting || isReviewed || rating === 0}
         >
           {submitting ? "Đang gửi..." : "Gửi đánh giá"}
         </button>

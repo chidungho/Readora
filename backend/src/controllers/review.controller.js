@@ -2,6 +2,22 @@ const Review = require('../models/review.model');
 const Book = require('../models/book.model');
 const Order = require('../models/order.model');
 
+const getEntityId = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (value._id) {
+    return getEntityId(value._id);
+  }
+
+  return value.toString();
+};
+
 const getBookReviews = async (req, res, next) => {
   try {
     const { bookId } = req.params;
@@ -23,7 +39,7 @@ const getBookReviews = async (req, res, next) => {
 const createBookReview = async (req, res, next) => {
   try {
     const { bookId } = req.params;
-    const { rating, comment } = req.body;
+    const { rating, comment, orderId } = req.body;
     const userId = req.user._id;
 
     const ratingNum = Number(rating);
@@ -32,6 +48,13 @@ const createBookReview = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Rating must be between 1 and 5',
+      });
+    }
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'orderId is required',
       });
     }
 
@@ -44,32 +67,57 @@ const createBookReview = async (req, res, next) => {
       });
     }
 
-    const existingReview = await Review.findOne({ user: userId, book: bookId });
+    const order = await Order.findById(orderId);
 
-    if (existingReview) {
-      return res.status(400).json({
+    if (!order) {
+      return res.status(404).json({
         success: false,
-        message: 'Ban da danh gia sach nay roi',
+        message: 'Order not found',
       });
     }
 
-    const deliveredOrder = await Order.findOne({
-      user: userId,
-      status: 'delivered',
-      'items.book': bookId,
-    });
+    if (getEntityId(order.user) !== getEntityId(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Order not found',
+      });
+    }
 
-    if (!deliveredOrder) {
+    if (order.status !== 'delivered') {
       return res.status(400).json({
         success: false,
         message: 'Ban co the danh gia sau khi don hang duoc giao thanh cong',
       });
     }
 
+    const hasBookInOrder = order.items?.some(
+      (item) => getEntityId(item.book) === getEntityId(bookId),
+    );
+
+    if (!hasBookInOrder) {
+      return res.status(400).json({
+        success: false,
+        message: 'Don hang nay khong co sach can danh gia',
+      });
+    }
+
+    const existingReview = await Review.findOne({
+      user: userId,
+      book: bookId,
+      order: orderId,
+    });
+
+    if (existingReview) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bạn đã đánh giá sách này trong đơn hàng này rồi.',
+      });
+    }
+
     const review = await Review.create({
       user: userId,
       book: bookId,
-      order: deliveredOrder._id,
+      order: order._id || orderId,
       rating: ratingNum,
       comment: comment || '',
     });
@@ -90,6 +138,23 @@ const createBookReview = async (req, res, next) => {
     await book.save();
 
     const populatedReview = await Review.findById(review._id).populate('user', 'name avatar');
+    const io = req.app ? req.app.get('io') : null;
+    const orderIdString = getEntityId(order._id || orderId);
+    const payload = {
+      type: 'review',
+      message: 'Có đánh giá mới',
+      bookTitle: book.title,
+      userName: populatedReview?.user?.name || req.user?.name || 'Nguoi dung',
+      rating: ratingNum,
+      comment: populatedReview?.comment || '',
+      createdAt: new Date(populatedReview?.createdAt || review.createdAt || Date.now()).toISOString(),
+      orderId: orderIdString,
+    };
+
+    if (io) {
+      console.log('emit admin:new-review', payload);
+      io.emit('admin:new-review', payload);
+    }
 
     return res.status(201).json({
       success: true,

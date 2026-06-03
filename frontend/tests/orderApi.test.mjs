@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { beforeEach, test } from "node:test";
 
 import * as api from "../src/services/api.js";
+
+const apiSource = readFileSync(
+  new URL("../src/services/api.js", import.meta.url),
+  "utf8",
+);
 
 const createLocalStorage = () => {
   const store = new Map();
@@ -157,6 +163,86 @@ test("getMyOrders fetches order history with the saved auth token", async () => 
   assert.deepEqual(orders, [{ _id: "order-1", status: "pending" }]);
 });
 
+test("createBookReview posts review data with the selected order id", async () => {
+  localStorage.setItem("readora_token", "token-review");
+  let receivedUrl;
+  let receivedOptions;
+
+  global.fetch = async (url, options) => {
+    receivedUrl = url;
+    receivedOptions = options;
+
+    return {
+      ok: true,
+      async json() {
+        return {
+          success: true,
+          data: {
+            _id: "review-1",
+            book: "book-1",
+            order: "order-1",
+            rating: 5,
+          },
+        };
+      },
+    };
+  };
+
+  const review = await api.createBookReview("book-1", {
+    rating: 5,
+    comment: "Hay",
+    orderId: "order-1",
+  });
+
+  assert.equal(receivedUrl, `${api.baseURL}/books/book-1/reviews`);
+  assert.equal(receivedOptions.method, "POST");
+  assert.equal(receivedOptions.headers.Authorization, "Bearer token-review");
+  assert.equal(receivedOptions.headers["Content-Type"], "application/json");
+  assert.deepEqual(JSON.parse(receivedOptions.body), {
+    rating: 5,
+    comment: "Hay",
+    orderId: "order-1",
+  });
+  assert.deepEqual(review, {
+    _id: "review-1",
+    book: "book-1",
+    order: "order-1",
+    rating: 5,
+  });
+});
+
+test("createBookReview uses request with auth and never calls itself", () => {
+  const createMatch = apiSource.match(
+    /export async function createBookReview\(bookId, payload\) \{[\s\S]*?\n\}/,
+  );
+
+  assert.ok(createMatch, "createBookReview must be an exported async function");
+  assert.equal(
+    (createMatch[0].match(/createBookReview/g) || []).length,
+    1,
+    "createBookReview must not call itself",
+  );
+  assert.match(
+    createMatch[0],
+    /return request\(`\/books\/\$\{bookId\}\/reviews`, \{[\s\S]*method: "POST"[\s\S]*body: JSON\.stringify\(payload\)[\s\S]*auth: true[\s\S]*\}\);/,
+  );
+});
+
+test("getBookReviews calls request directly and never calls itself", () => {
+  const getReviewsStart = apiSource.indexOf("getBookReviews");
+  const getReviewsEnd = apiSource.indexOf("createBookReview", getReviewsStart);
+  const getReviewsSource = apiSource.slice(getReviewsStart, getReviewsEnd);
+
+  assert.notEqual(getReviewsStart, -1, "getBookReviews must exist");
+  assert.ok(getReviewsEnd > getReviewsStart, "getBookReviews source boundary missing");
+  assert.equal(
+    (getReviewsSource.match(/getBookReviews/g) || []).length,
+    1,
+    "getBookReviews must not call itself",
+  );
+  assert.match(getReviewsSource, /request\(`\/books\/\$\{bookId\}\/reviews`\)/);
+});
+
 test("order API helpers require a saved auth token", async () => {
   await assert.rejects(
     () => api.createOrder({ items: [], shippingAddress: {} }),
@@ -164,6 +250,10 @@ test("order API helpers require a saved auth token", async () => {
   );
 
   await assert.rejects(() => api.getMyOrders(), /You are not logged in/);
+  await assert.rejects(
+    () => api.createBookReview("book-1", { rating: 5, comment: "", orderId: "order-1" }),
+    /You are not logged in/,
+  );
 });
 
 test("admin book helpers call admin book endpoints with the saved auth token", async () => {

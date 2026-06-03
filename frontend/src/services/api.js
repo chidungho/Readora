@@ -165,7 +165,16 @@ const requestPayload = async (endpoint, options = {}) => {
 };
 
 const request = async (endpoint, options = {}) => {
-  const payload = await requestPayload(endpoint, options);
+  const { auth, ...fetchOptions } = options;
+  const payload = await requestPayload(
+    endpoint,
+    auth
+      ? {
+          ...fetchOptions,
+          headers: getAuthHeaders(fetchOptions.headers),
+        }
+      : fetchOptions,
+  );
 
   return payload?.data ?? payload;
 };
@@ -318,11 +327,13 @@ export const getBookReviews = async (bookId) => {
   return Array.isArray(data) ? data : [];
 };
 
-export const createBookReview = async (bookId, { rating, comment }) =>
-  requestWithAuth(`/books/${bookId}/reviews`, {
-    method: 'POST',
+export async function createBookReview(bookId, payload) {
+  return request(`/books/${bookId}/reviews`, {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ rating, comment }),
+    body: JSON.stringify(payload),
+    auth: true,
   });
+}
