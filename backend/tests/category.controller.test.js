@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const Category = require('../src/models/category.model');
+const Book = require('../src/models/book.model');
 const categoryController = require('../src/controllers/category.controller');
 
 const mockResponse = () => ({
@@ -49,6 +50,29 @@ const withMockedCategoryMethod = async (methodName, mockFn, action) => {
   }
 };
 
+const withMockedMethods = async (targets, action) => {
+  const originals = [];
+
+  for (const [target, methodName, mockFn] of targets) {
+    originals.push([target, methodName, target[methodName]]);
+    target[methodName] = mockFn;
+  }
+
+  try {
+    return await action();
+  } finally {
+    for (const [target, methodName, original] of originals) {
+      target[methodName] = original;
+    }
+  }
+};
+
+const createSortableCategoryFind = (categories) => ({
+  sort() {
+    return Promise.resolve(categories);
+  },
+});
+
 test('Category schema uses requested fields, defaults, and collection name', () => {
   const requiredFields = ['name', 'slug'];
   const optionalFields = ['description', 'icon', 'bookCount'];
@@ -72,34 +96,47 @@ test('Category schema uses requested fields, defaults, and collection name', () 
 });
 
 test('Category controller exports all requested handlers', () => {
-  const handlers = ['getCategories', 'getCategoryBySlug'];
+  const handlers = ['getCategories', 'getCategoryBySlug', 'syncCategoriesFromBooks', 'upsertCategories'];
 
   for (const handler of handlers) {
     assert.equal(typeof categoryController[handler], 'function');
   }
 });
 
-test('getCategories returns a success response with data', async () => {
-  const categories = [{ name: 'Life Skills', slug: 'ky-nang-song' }];
+test('getCategories returns dynamic categories with book counts', async () => {
+  const categories = [{ name: 'Life Skills', slug: 'life-skills', toObject() { return { name: this.name, slug: this.slug }; } }];
+  const books = [
+    { category: 'Psychology', categories: ['Psychology', 'Life Skills'] },
+    { category: 'Life Skills', categories: [] },
+  ];
+  const updates = [];
 
-  await withMockedCategoryMethod('find', async () => categories, async () => {
+  await withMockedMethods([
+    [Category, 'find', () => createSortableCategoryFind(categories)],
+    [Category, 'updateOne', async (...args) => updates.push(args)],
+    [Book, 'find', async () => books],
+  ], async () => {
     const res = await callController(categoryController.getCategories);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.payload, {
-      success: true,
-      data: categories,
-    });
+    assert.deepEqual(res.payload.data.map((category) => [category.name, category.bookCount]), [
+      ['Life Skills', 2],
+      ['Psychology', 1],
+    ]);
+    assert.equal(updates.length >= 2, true);
   });
 });
 
 test('getCategoryBySlug returns a success response with one category', async () => {
   const category = { name: 'Life Skills', slug: 'ky-nang-song' };
 
-  await withMockedCategoryMethod('findOne', async (query) => {
-    assert.deepEqual(query, { slug: 'ky-nang-song' });
-    return category;
-  }, async () => {
+  await withMockedMethods([
+    [Category, 'findOne', async (query) => {
+      assert.deepEqual(query, { slug: 'ky-nang-song' });
+      return category;
+    }],
+    [Book, 'countDocuments', async () => 3],
+  ], async () => {
     const res = await callController(categoryController.getCategoryBySlug, {
       params: { slug: 'ky-nang-song' },
     });
@@ -107,7 +144,7 @@ test('getCategoryBySlug returns a success response with one category', async () 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.payload, {
       success: true,
-      data: category,
+      data: { ...category, bookCount: 3 },
     });
   });
 });

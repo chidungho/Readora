@@ -1,7 +1,8 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const Book = require('../src/models/book.model');
+const Category = require('../src/models/category.model');
 const bookController = require('../src/controllers/book.controller');
 
 const mockResponse = () => ({
@@ -89,7 +90,7 @@ const createBookQueryMock = (books, calls = {}) => ({
 });
 
 test('Book schema uses required fields, defaults, and timestamps', () => {
-  const requiredFields = ['title', 'author', 'price', 'category'];
+  const requiredFields = ['title', 'author', 'price'];
   const optionalFields = ['description', 'originalPrice', 'image', 'coverImage'];
 
   for (const field of requiredFields) {
@@ -155,6 +156,7 @@ test('getBooks returns a success response with data', async () => {
         page: 1,
         limit: 12,
         total: 1,
+        totalItems: 1,
         totalPages: 1,
       },
     });
@@ -192,7 +194,10 @@ test('getBooks builds search, category, price, rating, sort, and pagination quer
 
     assert.equal(res.statusCode, 200);
     assert.deepEqual(calls.filter.$and[1], {
-      $or: [{ category: 'Cong nghe' }, { categories: 'Cong nghe' }],
+      $or: [
+        { category: { $regex: '^Cong nghe$', $options: 'i' } },
+        { categories: { $regex: '^Cong nghe$', $options: 'i' } },
+      ],
     });
     assert.deepEqual(calls.filter.price, { $gte: 50000, $lte: 200000 });
     assert.deepEqual(calls.filter.rating, { $gte: 4.5 });
@@ -218,6 +223,7 @@ test('getBooks builds search, category, price, rating, sort, and pagination quer
         page: 2,
         limit: 10,
         total: 25,
+        totalItems: 25,
         totalPages: 3,
       },
     });
@@ -244,13 +250,18 @@ test('getBooks generates categories for legacy comma and dash category responses
     const res = await callController(bookController.getBooks, { query: {} });
 
     assert.deepEqual(res.payload.data[0].categories, ['Tam ly hoc', 'Ky nang song']);
-    assert.equal(res.payload.data[0].category, 'Tam ly hoc, Ky nang song');
+    assert.equal(res.payload.data[0].category, 'Tam ly hoc');
     assert.deepEqual(res.payload.data[1].categories, ['Tam ly hoc', 'Ky nang song']);
   });
 });
 
 test('createBook normalizes comma and dash separated categories', async () => {
   const calls = {};
+
+  const originalUpdateOne = Category.updateOne;
+  Category.updateOne = async (filter, update, options) => {
+    calls.categoryUpserts = [...(calls.categoryUpserts || []), { filter, update, options }];
+  };
 
   await withMockedBookMethod('create', async (payload) => {
     calls.payload = payload;
@@ -269,10 +280,19 @@ test('createBook normalizes comma and dash separated categories', async () => {
     assert.equal(calls.payload.category, 'Tam ly hoc');
     assert.deepEqual(calls.payload.categories, ['Tam ly hoc', 'Ky nang song']);
   });
+
+  Category.updateOne = originalUpdateOne;
+  assert.deepEqual(calls.categoryUpserts.map((call) => call.filter), [
+    { slug: 'tam-ly-hoc' },
+    { slug: 'ky-nang-song' },
+  ]);
 });
 
 test('updateBook normalizes provided categories arrays', async () => {
   const calls = {};
+
+  const originalUpdateOne = Category.updateOne;
+  Category.updateOne = async () => {};
 
   await withMockedBookMethod('findByIdAndUpdate', async (id, payload) => {
     calls.id = id;
@@ -292,6 +312,8 @@ test('updateBook normalizes provided categories arrays', async () => {
     assert.equal(calls.payload.category, 'Tam ly hoc');
     assert.deepEqual(calls.payload.categories, ['Tam ly hoc', 'Ky nang song']);
   });
+
+  Category.updateOne = originalUpdateOne;
 });
 
 test('getBooks supports popular, rating, and price descending sort aliases', async () => {
@@ -402,3 +424,4 @@ test('seedBooks clears old books and inserts six Vietnamese samples', async () =
     });
   });
 });
+

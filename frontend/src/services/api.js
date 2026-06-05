@@ -1,4 +1,4 @@
-export const baseURL = "http://localhost:5000/api";
+﻿export const baseURL = "http://localhost:5000/api";
 export const API_ORIGIN = baseURL.replace(/\/api$/, "");
 
 const fallbackCoverSvg = `
@@ -14,7 +14,7 @@ export const FALLBACK_COVER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponen
   fallbackCoverSvg,
 )}`;
 
-const DEFAULT_ERROR_MESSAGE = "Không thể tải dữ liệu từ Readora API.";
+const DEFAULT_ERROR_MESSAGE = "KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u tá»« Readora API.";
 const BOOK_QUERY_KEYS = [
   "search",
   "category",
@@ -54,8 +54,21 @@ export const splitCategoryNames = (value) =>
     .map((category) => category.trim())
     .filter(Boolean);
 
-export const normalizeCategoryNames = (value) =>
-  Array.from(new Set(splitCategoryNames(value)));
+export const normalizeCategoryNames = (value) => {
+  const seen = new Set();
+  const categories = [];
+
+  splitCategoryNames(value).forEach((category) => {
+    const key = category.toLocaleLowerCase("vi-VN");
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      categories.push(category);
+    }
+  });
+
+  return categories;
+};
 
 const createSlug = (value) =>
   value
@@ -106,12 +119,17 @@ const extractBookRequestOptions = (options = {}) => {
   return { params, fetchOptions };
 };
 
-const normalizePagination = (pagination = {}) => ({
-  page: toNumber(pagination.page, 1),
-  limit: toNumber(pagination.limit, 12),
-  total: toNumber(pagination.total, 0),
-  totalPages: toNumber(pagination.totalPages, 0),
-});
+const normalizePagination = (pagination = {}) => {
+  const total = toNumber(pagination.totalItems ?? pagination.total, 0);
+
+  return {
+    page: toNumber(pagination.page, 1),
+    limit: toNumber(pagination.limit, 12),
+    total,
+    totalItems: total,
+    totalPages: toNumber(pagination.totalPages, 0),
+  };
+};
 
 export const normalizeBook = (book = {}) => {
   const id = book._id || book.id || "";
@@ -125,17 +143,17 @@ export const normalizeBook = (book = {}) => {
           ),
         )
       : normalizeCategoryNames(book.category);
-  const category = categories[0] || normalizeCategoryName(book.category) || "Chưa phân loại";
+  const category = categories[0] || normalizeCategoryName(book.category) || "ChÆ°a phÃ¢n loáº¡i";
   const coverImage = book.coverImage || book.image || FALLBACK_COVER_IMAGE;
 
   return {
     ...book,
     _id: id,
     id,
-    title: book.title || "Sách đang cập nhật",
+    title: book.title || "SÃ¡ch Ä‘ang cáº­p nháº­t",
     author: book.author || "Readora",
     description:
-      book.description || "Mô tả sách đang được Readora cập nhật.",
+      book.description || "MÃ´ táº£ sÃ¡ch Ä‘ang Ä‘Æ°á»£c Readora cáº­p nháº­t.",
     category,
     categories,
     price: toNumber(book.price, null),
@@ -315,10 +333,27 @@ export const getMyOrders = async (options = {}) => {
   return Array.isArray(data) ? data : [];
 };
 
-export const getAdminBooks = async (options = {}) => {
-  const data = await requestWithAuth("/admin/books", options);
+export const getAdminBooksPage = async (options = {}) => {
+  const { params, fetchOptions } = extractBookRequestOptions({
+    limit: 1000,
+    ...options,
+  });
+  const payload = await requestPayload(appendQueryString("/admin/books", params), {
+    ...fetchOptions,
+    headers: getAuthHeaders(fetchOptions.headers),
+  });
+  const books = Array.isArray(payload.data) ? payload.data.map(normalizeBook) : [];
 
-  return Array.isArray(data) ? data.map(normalizeBook) : [];
+  return {
+    books,
+    pagination: normalizePagination(payload.pagination),
+  };
+};
+
+export const getAdminBooks = async (options = {}) => {
+  const { books } = await getAdminBooksPage(options);
+
+  return books;
 };
 
 export const createAdminBook = async (data) =>
@@ -397,8 +432,9 @@ export async function createBookReview(bookId, payload) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.message || "Không gửi được đánh giá");
+    throw new Error(data?.message || "KhÃ´ng gá»­i Ä‘Æ°á»£c Ä‘Ã¡nh giÃ¡");
   }
 
   return data;
 }
+

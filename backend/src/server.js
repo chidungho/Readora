@@ -9,6 +9,7 @@ require("dotenv").config({
 
 const app = require('./app');
 const connectDB = require('./config/db');
+const { syncCategoriesFromBooks } = require('./utils/category.utils');
 const {
   getSocketCorsOrigins,
   registerSocketConnectionLogs,
@@ -32,6 +33,7 @@ const handleServerError = (error) => {
 
 const startServer = async () => {
   await connectDB();
+  await syncCategoriesFromBooks();
 
   httpServer = http.createServer(app);
   io = new Server(httpServer, {

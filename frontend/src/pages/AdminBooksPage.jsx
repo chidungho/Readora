@@ -4,7 +4,7 @@ import {
   createAdminBook,
   deleteAdminBook,
   FALLBACK_COVER_IMAGE,
-  getAdminBooks,
+  getAdminBooksPage,
   normalizeCategoryNames,
   updateAdminBook,
   uploadBookCover,
@@ -42,6 +42,7 @@ const toNumber = (value, fallback = 0) => {
 
 function AdminBooksPage() {
   const [books, setBooks] = useState([]);
+  const [booksTotal, setBooksTotal] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [coverMode, setCoverMode] = useState("url");
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -51,13 +52,19 @@ function AdminBooksPage() {
   const [editingBookId, setEditingBookId] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [, setIsComposing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const videoRef = useRef(null);
 
-  const loadBooks = async (options = {}) => {
-    const nextBooks = await getAdminBooks(options);
+  const updateAdminBooksState = ({ books: nextBooks, pagination }) => {
     setBooks(nextBooks);
+    setBooksTotal(pagination?.totalItems ?? pagination?.total ?? nextBooks.length);
+  };
+
+  const loadBooks = async (options = {}) => {
+    const result = await getAdminBooksPage(options);
+    updateAdminBooksState(result);
   };
 
   useEffect(() => {
@@ -66,10 +73,10 @@ function AdminBooksPage() {
 
     const loadInitialBooks = async () => {
       try {
-        const nextBooks = await getAdminBooks({ signal: controller.signal });
+        const result = await getAdminBooksPage({ signal: controller.signal });
 
         if (isActive) {
-          setBooks(nextBooks);
+          updateAdminBooksState(result);
         }
       } catch (booksError) {
         if (booksError.name !== "AbortError" && isActive) {
@@ -97,13 +104,24 @@ function AdminBooksPage() {
     [cameraStream],
   );
 
-  const handleFormChange = (event) => {
-    const { name, value } = event.target;
-
+  const updateFormField = (name, value) => {
     setForm((currentForm) => ({
       ...currentForm,
       [name]: value,
     }));
+  };
+
+  const handleFormChange = (event) => {
+    updateFormField(event.target.name, event.target.value);
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (event) => {
+    setIsComposing(false);
+    updateFormField(event.currentTarget.name, event.currentTarget.value);
   };
 
   const stopCamera = () => {
@@ -285,7 +303,7 @@ function AdminBooksPage() {
     const payload = {
       title: form.title.trim(),
       author: form.author.trim(),
-      category: categories[0] || form.category.trim(),
+      category: categories[0] || "",
       categories,
       description: form.description.trim(),
       price: toNumber(form.price),
@@ -358,6 +376,8 @@ function AdminBooksPage() {
               name="title"
               value={form.title}
               onChange={handleFormChange}
+onCompositionStart={handleCompositionStart}
+onCompositionEnd={handleCompositionEnd}
               placeholder="Clean Code"
               required
             />
@@ -369,6 +389,8 @@ function AdminBooksPage() {
               name="author"
               value={form.author}
               onChange={handleFormChange}
+onCompositionStart={handleCompositionStart}
+onCompositionEnd={handleCompositionEnd}
               placeholder="Robert C. Martin"
               required
             />
@@ -381,6 +403,8 @@ function AdminBooksPage() {
                 name="category"
                 value={form.category}
                 onChange={handleFormChange}
+onCompositionStart={handleCompositionStart}
+onCompositionEnd={handleCompositionEnd}
                 placeholder="Ví dụ: Tâm lý học, Kỹ năng sống"
                 required
               />
@@ -451,6 +475,8 @@ function AdminBooksPage() {
                 type="url"
                 value={form.coverImage}
                 onChange={handleFormChange}
+onCompositionStart={handleCompositionStart}
+onCompositionEnd={handleCompositionEnd}
                 placeholder="https://example.com/book.jpg"
               />
             )}
@@ -516,6 +542,8 @@ function AdminBooksPage() {
               name="description"
               value={form.description}
               onChange={handleFormChange}
+onCompositionStart={handleCompositionStart}
+onCompositionEnd={handleCompositionEnd}
               placeholder="Mô tả ngắn về sách"
               rows="4"
             />
@@ -537,7 +565,7 @@ function AdminBooksPage() {
           <div className="admin-panel__header">
             <div>
               <p className="eyebrow">DANH SÁCH</p>
-              <h2>{books.length} sách</h2>
+              <h2>{booksTotal} sách</h2>
             </div>
           </div>
 

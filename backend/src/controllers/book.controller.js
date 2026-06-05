@@ -1,8 +1,13 @@
 const Book = require('../models/book.model');
+const {
+  buildCategoryExactFilter,
+  normalizeCategories,
+  upsertCategories,
+} = require('../utils/category.utils');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 12;
-const MAX_LIMIT = 100;
+const MAX_LIMIT = 1000;
 
 const sortOptions = {
   newest: { createdAt: -1 },
@@ -63,34 +68,21 @@ const parseFiniteNumber = (value) => {
   return Number.isFinite(number) ? number : null;
 };
 
-const splitCategories = (value) =>
-  String(value)
-    .split(/\s+-\s+|,/)
-    .map((category) => category.trim())
-    .filter(Boolean);
-
-const uniqueCategories = (categories) => Array.from(new Set(categories));
-
 const getNormalizedCategories = (body = {}) => {
-  const categories = Array.isArray(body.categories)
-    ? body.categories.flatMap(splitCategories)
-    : typeof body.category === 'string'
-      ? splitCategories(body.category)
-      : [];
+  const source = body.categories !== undefined ? body.categories : body.category;
 
-  return uniqueCategories(categories);
+  return normalizeCategories(source);
 };
 
 const normalizeBookCategories = (body = {}) => {
   const payload = { ...body };
-  const hasCategoryInput =
-    Array.isArray(payload.categories) || typeof payload.category === 'string';
+  const hasCategoryInput = payload.categories !== undefined || payload.category !== undefined;
 
   if (hasCategoryInput) {
     const categories = getNormalizedCategories(payload);
 
     payload.categories = categories;
-    payload.category = categories[0] || payload.category;
+    payload.category = categories[0] || '';
   }
 
   return payload;
@@ -98,10 +90,14 @@ const normalizeBookCategories = (body = {}) => {
 
 const normalizeBookResponse = (book) => {
   const plainBook = typeof book?.toObject === 'function' ? book.toObject() : { ...book };
+  const categories = normalizeCategories(plainBook.categories);
 
-  if ((!Array.isArray(plainBook.categories) || plainBook.categories.length === 0)
-    && typeof plainBook.category === 'string') {
-    plainBook.categories = splitCategories(plainBook.category);
+  if (categories.length > 0) {
+    plainBook.categories = categories;
+    plainBook.category = categories[0] || '';
+  } else if (typeof plainBook.category === 'string') {
+    plainBook.categories = normalizeCategories(plainBook.category);
+    plainBook.category = plainBook.categories[0] || plainBook.category || '';
   }
 
   return plainBook;
@@ -110,7 +106,8 @@ const normalizeBookResponse = (book) => {
 const buildBooksFilter = (query = {}) => {
   const filter = {};
   const search = typeof query.search === 'string' ? query.search.trim() : '';
-  const category = typeof query.category === 'string' ? query.category.trim() : '';
+  const selectedCategories = normalizeCategories(query.category);
+  const category = selectedCategories[0] || '';
   const minPrice = parseFiniteNumber(query.minPrice);
   const maxPrice = parseFiniteNumber(query.maxPrice);
   const rating = parseFiniteNumber(query.rating);
@@ -127,7 +124,7 @@ const buildBooksFilter = (query = {}) => {
   }
 
   if (category) {
-    const categoryFilter = { $or: [{ category }, { categories: category }] };
+    const categoryFilter = buildCategoryExactFilter(category);
 
     if (filter.$or) {
       filter.$and = [{ $or: filter.$or }, categoryFilter];
@@ -178,6 +175,7 @@ const getBooks = async (req, res, next) => {
         page,
         limit,
         total,
+        totalItems: total,
         totalPages: Math.ceil(total / limit),
       },
     });
@@ -210,6 +208,7 @@ const getBookById = async (req, res, next) => {
 const createBook = async (req, res, next) => {
   try {
     const payload = normalizeBookCategories(req.body);
+    await upsertCategories(payload.categories);
     const book = await Book.create(payload);
 
     res.status(201).json({
@@ -225,6 +224,7 @@ const createBook = async (req, res, next) => {
 const updateBook = async (req, res, next) => {
   try {
     const payload = normalizeBookCategories(req.body);
+    await upsertCategories(payload.categories);
     const book = await Book.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
@@ -379,5 +379,6 @@ module.exports = {
   createBook,
   updateBook,
   deleteBook,
+  normalizeCategories,
   seedBooks,
 };

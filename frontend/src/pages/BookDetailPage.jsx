@@ -41,6 +41,9 @@ const formatStock = (value) => {
   return stock > 0 ? `Còn ${stock} cuốn` : "Tạm hết hàng";
 };
 
+const getCategoryDisplay = (book) =>
+  book?.categories?.length ? book.categories.join(" - ") : book?.category || "Chưa phân loại";
+
 function BookDetailPage() {
   const { id } = useParams();
   const [book, setBook] = useState(null);
@@ -173,7 +176,7 @@ function BookDetailPage() {
           </div>
 
           <div className="book-detail__content fade-up">
-            <p className="eyebrow">{book.categories?.join(" - ") || book.category || "Chưa phân loại"}</p>
+            <p className="eyebrow">{getCategoryDisplay(book)}</p>
             <h1>{book.title}</h1>
             <p className="book-detail__author">Tác giả: {book.author}</p>
             <p className="book-detail__description">
@@ -181,7 +184,7 @@ function BookDetailPage() {
             </p>
 
             <div className="book-detail__facts" aria-label="Thông tin sách">
-              <span>{book.categories?.join(" - ") || book.category || "Chưa phân loại"}</span>
+              <span>{getCategoryDisplay(book)}</span>
               <span>{formatStock(book.stock)}</span>
               <span>{formatRating(book.rating)}</span>
               <span>Đã bán {Number(book.sold) || 0}</span>

@@ -910,6 +910,10 @@
   color: var(--color-text);
 }
 
+.books-results-anchor {
+  scroll-margin-top: 120px;
+}
+
 .books-results--grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -2283,6 +2287,47 @@ body[data-theme="dark"] .admin-shell {
 
 .admin-table tr:last-child td {
   border-bottom: 0;
+}
+
+.admin-reviews-table td {
+  vertical-align: middle;
+}
+
+.admin-review-book {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.admin-review-book img {
+  width: 64px;
+  max-width: 64px;
+  height: 84px;
+  max-height: 84px;
+  object-fit: cover;
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.admin-review-book strong {
+  display: block;
+  line-height: 1.25;
+}
+
+.admin-review-stars {
+  color: var(--color-secondary);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+
+.admin-review-comment {
+  min-width: 220px;
+  max-width: 420px;
+  margin: 0;
+  color: var(--color-muted);
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .admin-table td strong,

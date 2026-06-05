@@ -59,6 +59,7 @@ function BooksPage() {
   const [pagination, setPagination] = useState(defaultPagination);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const resultsRef = useRef(null);
   const skipSearchInputSyncRef = useRef(false);
   const isSearchComposingRef = useRef(false);
 
@@ -271,8 +272,15 @@ function BooksPage() {
     applyBooksQuery({ sort: value });
   };
 
-  const updatePage = (value) => {
-    applyBooksQuery({ page: value }, { resetPage: false });
+  const goToPage = (nextPage) => {
+    applyBooksQuery({ page: nextPage }, { resetPage: false });
+
+    requestAnimationFrame(() => {
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   };
 
   const resetFilters = () => {
@@ -460,7 +468,7 @@ function BooksPage() {
               aria-busy={loading}
               aria-live="polite"
             >
-              <div className="results-summary">
+              <div ref={resultsRef} className="results-summary books-results-anchor">
                 <strong>
                   {loading
                     ? "Đang tải sách..."
@@ -497,7 +505,7 @@ function BooksPage() {
                     <button
                       className="button button--secondary"
                       type="button"
-                      onClick={() => updatePage(Math.max(1, currentPage - 1))}
+                      onClick={() => goToPage(Math.max(1, currentPage - 1))}
                       disabled={!canGoPrevious}
                     >
                       Trước
@@ -508,7 +516,7 @@ function BooksPage() {
                     <button
                       className="button button--secondary"
                       type="button"
-                      onClick={() => updatePage(currentPage + 1)}
+                      onClick={() => goToPage(currentPage + 1)}
                       disabled={!canGoNext}
                     >
                       Sau

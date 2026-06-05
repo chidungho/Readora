@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { beforeEach, test } from "node:test";
 
@@ -93,6 +93,7 @@ test("getBooksPage sends query params and returns books with pagination", async 
     page: 2,
     limit: 10,
     total: 21,
+    totalItems: 21,
     totalPages: 3,
   });
 });
@@ -268,7 +269,7 @@ test("admin book helpers call admin book endpoints with the saved auth token", a
       async json() {
         return {
           success: true,
-          data: url.endsWith("/admin/books")
+          data: url.includes("/admin/books")
             ? [{ _id: "book-1", title: "Admin Book", price: 100000 }]
             : { _id: "book-1", title: "Admin Book", price: 100000 },
         };
@@ -281,7 +282,7 @@ test("admin book helpers call admin book endpoints with the saved auth token", a
   await api.updateAdminBook("book-1", { title: "Updated Book" });
   await api.deleteAdminBook("book-1");
 
-  assert.equal(calls[0].url, `${api.baseURL}/admin/books`);
+  assert.equal(calls[0].url, `${api.baseURL}/admin/books?limit=1000`);
   assert.equal(calls[0].options.headers.Authorization, "Bearer admin-token");
   assert.equal(books[0].title, "Admin Book");
 
@@ -331,3 +332,5 @@ test("admin order helpers list orders and update status with the saved auth toke
   assert.deepEqual(JSON.parse(calls[1].options.body), { status: "shipped" });
   assert.deepEqual(updatedOrder, { _id: "order-1", status: "shipped" });
 });
+
+

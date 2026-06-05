@@ -26,13 +26,14 @@ const bookSchema = new mongoose.Schema(
     coverImage: {
       type: String,
     },
-    category: {
-      type: String,
-      required: true,
-    },
     categories: {
       type: [String],
       default: [],
+    },
+    category: {
+      type: String,
+      trim: true,
+      default: '',
     },
     stock: {
       type: Number,
