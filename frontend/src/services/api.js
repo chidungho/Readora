@@ -48,6 +48,15 @@ const normalizeCategoryName = (category) => {
   return category.name || category.title || category.slug || "";
 };
 
+export const splitCategoryNames = (value) =>
+  String(value || "")
+    .split(/\s+-\s+|,/)
+    .map((category) => category.trim())
+    .filter(Boolean);
+
+export const normalizeCategoryNames = (value) =>
+  Array.from(new Set(splitCategoryNames(value)));
+
 const createSlug = (value) =>
   value
     .toLocaleLowerCase("vi-VN")
@@ -106,7 +115,17 @@ const normalizePagination = (pagination = {}) => ({
 
 export const normalizeBook = (book = {}) => {
   const id = book._id || book.id || "";
-  const category = normalizeCategoryName(book.category) || "Chưa phân loại";
+  const categories =
+    Array.isArray(book.categories) && book.categories.length > 0
+      ? Array.from(
+          new Set(
+            book.categories.flatMap((category) =>
+              splitCategoryNames(normalizeCategoryName(category)),
+            ),
+          ),
+        )
+      : normalizeCategoryNames(book.category);
+  const category = categories[0] || normalizeCategoryName(book.category) || "Chưa phân loại";
   const coverImage = book.coverImage || book.image || FALLBACK_COVER_IMAGE;
 
   return {
@@ -118,6 +137,7 @@ export const normalizeBook = (book = {}) => {
     description:
       book.description || "Mô tả sách đang được Readora cập nhật.",
     category,
+    categories,
     price: toNumber(book.price, null),
     originalPrice: toNumber(book.originalPrice, null),
     stock: toNumber(book.stock, 0),

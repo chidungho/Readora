@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import BookCard from "../components/BookCard";
 import Layout from "../layouts/Layout";
-import { getBooksPage, getCategories } from "../services/api";
+import {
+  getBooksPage,
+  getCategories,
+  normalizeCategoryNames,
+} from "../services/api";
 import {
   buildBooksQueryParams,
   parseBooksQuery,
@@ -138,27 +142,38 @@ function BooksPage() {
     sortBy,
   ]);
 
+  const getBookCategories = useCallback((book) => {
+    if (Array.isArray(book.categories) && book.categories.length > 0) {
+      return book.categories.filter(Boolean);
+    }
+
+    return normalizeCategoryNames(book.category);
+  }, []);
+
   const categoryOptions = useMemo(() => {
     const apiCategories = categories
       .map((category) => category.name)
       .filter(Boolean);
-    const fallbackCategories = books.map((book) => book.category).filter(Boolean);
+    const fallbackCategories = books.flatMap(getBookCategories);
 
     return [...new Set([...apiCategories, ...fallbackCategories])];
-  }, [books, categories]);
+  }, [books, categories, getBookCategories]);
 
   const categoryHighlights = useMemo(
     () =>
       categoryOptions.map((category) => {
         const apiCategory = categories.find((item) => item.name === category);
         const apiCount = Number(apiCategory?.bookCount);
+        const fallbackCount = books.filter((book) =>
+          getBookCategories(book).includes(category),
+        ).length;
 
         return {
           name: category,
-          count: Number.isFinite(apiCount) && apiCount > 0 ? apiCount : 0,
+          count: Number.isFinite(apiCount) && apiCount > 0 ? apiCount : fallbackCount,
         };
       }),
-    [categories, categoryOptions],
+    [books, categories, categoryOptions, getBookCategories],
   );
 
   const applyBooksQuery = useCallback(

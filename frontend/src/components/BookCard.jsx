@@ -43,7 +43,7 @@ function BookCard({ book, viewMode = "grid" }) {
   const coverImage = book.coverImage || book.image || FALLBACK_COVER_IMAGE;
   const title = book.title || "Sách đang cập nhật";
   const author = book.author || "Readora";
-  const category = book.category || "Chưa phân loại";
+  const category = book.categories?.join(" - ") || book.category || "Chưa phân loại";
   const description =
     book.description || "Mô tả sách đang được Readora cập nhật.";
   const formattedPrice = formatCurrency(book.price);

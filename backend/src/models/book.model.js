@@ -30,6 +30,10 @@ const bookSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    categories: {
+      type: [String],
+      default: [],
+    },
     stock: {
       type: Number,
       default: 0,

@@ -173,7 +173,7 @@ function BookDetailPage() {
           </div>
 
           <div className="book-detail__content fade-up">
-            <p className="eyebrow">{book.category || "Chưa phân loại"}</p>
+            <p className="eyebrow">{book.categories?.join(" - ") || book.category || "Chưa phân loại"}</p>
             <h1>{book.title}</h1>
             <p className="book-detail__author">Tác giả: {book.author}</p>
             <p className="book-detail__description">
@@ -181,7 +181,7 @@ function BookDetailPage() {
             </p>
 
             <div className="book-detail__facts" aria-label="Thông tin sách">
-              <span>{book.category || "Chưa phân loại"}</span>
+              <span>{book.categories?.join(" - ") || book.category || "Chưa phân loại"}</span>
               <span>{formatStock(book.stock)}</span>
               <span>{formatRating(book.rating)}</span>
               <span>Đã bán {Number(book.sold) || 0}</span>

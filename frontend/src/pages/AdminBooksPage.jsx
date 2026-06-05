@@ -5,6 +5,7 @@ import {
   deleteAdminBook,
   FALLBACK_COVER_IMAGE,
   getAdminBooks,
+  normalizeCategoryNames,
   updateAdminBook,
   uploadBookCover,
 } from "../services/api";
@@ -264,7 +265,7 @@ function AdminBooksPage() {
     setForm({
       title: book.title || "",
       author: book.author || "",
-      category: book.category || "",
+      category: book.categories?.join(", ") || book.category || "",
       price: book.price ?? "",
       originalPrice: book.originalPrice ?? "",
       stock: book.stock ?? "",
@@ -280,10 +281,12 @@ function AdminBooksPage() {
     setError("");
 
     const coverImage = form.coverImage.trim();
+    const categories = normalizeCategoryNames(form.category);
     const payload = {
       title: form.title.trim(),
       author: form.author.trim(),
-      category: form.category.trim(),
+      category: categories[0] || form.category.trim(),
+      categories,
       description: form.description.trim(),
       price: toNumber(form.price),
       originalPrice: form.originalPrice === "" ? undefined : toNumber(form.originalPrice),
@@ -378,7 +381,7 @@ function AdminBooksPage() {
                 name="category"
                 value={form.category}
                 onChange={handleFormChange}
-                placeholder="Công nghệ"
+                placeholder="Ví dụ: Tâm lý học, Kỹ năng sống"
                 required
               />
             </label>

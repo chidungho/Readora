@@ -107,6 +107,7 @@ test('Book schema uses required fields, defaults, and timestamps', () => {
     category: 'Giao duc',
   });
 
+  assert.deepEqual(doc.categories, []);
   assert.equal(doc.stock, 0);
   assert.equal(doc.rating, 0);
   assert.equal(doc.sold, 0);
@@ -190,13 +191,21 @@ test('getBooks builds search, category, price, rating, sort, and pagination quer
     });
 
     assert.equal(res.statusCode, 200);
-    assert.equal(calls.filter.category, 'Cong nghe');
+    assert.deepEqual(calls.filter.$and[1], {
+      $or: [{ category: 'Cong nghe' }, { categories: 'Cong nghe' }],
+    });
     assert.deepEqual(calls.filter.price, { $gte: 50000, $lte: 200000 });
     assert.deepEqual(calls.filter.rating, { $gte: 4.5 });
-    assert.equal(calls.filter.$or.length, 2);
-    assert.equal(calls.filter.$or[0].title.source, 'clean');
-    assert.equal(calls.filter.$or[0].title.flags, 'i');
-    assert.equal(calls.filter.$or[1].author.source, 'clean');
+    assert.equal(calls.filter.$and[0].$or.length, 5);
+    assert.match(calls.filter.$and[0].$or[0].title.source, /^cl/);
+    assert.equal(calls.filter.$and[0].$or[0].title.flags, 'i');
+    assert.equal(calls.filter.$and[0].$or[1].author.source, calls.filter.$and[0].$or[0].title.source);
+    assert.equal(
+      calls.filter.$and[0].$or[2].description.source,
+      calls.filter.$and[0].$or[0].title.source,
+    );
+    assert.equal(calls.filter.$and[0].$or[3].category.source, calls.filter.$and[0].$or[0].title.source);
+    assert.equal(calls.filter.$and[0].$or[4].categories.source, calls.filter.$and[0].$or[0].title.source);
     assert.deepEqual(calls.countFilter, calls.filter);
     assert.deepEqual(calls.sort, { price: 1, createdAt: -1 });
     assert.equal(calls.skip, 10);
@@ -212,6 +221,76 @@ test('getBooks builds search, category, price, rating, sort, and pagination quer
         totalPages: 3,
       },
     });
+  });
+});
+
+test('getBooks generates categories for legacy comma and dash category responses', async () => {
+  const books = [
+    {
+      title: 'Legacy comma',
+      category: 'Tam ly hoc, Ky nang song',
+      categories: [],
+    },
+    {
+      title: 'Legacy dash',
+      category: 'Tam ly hoc - Ky nang song',
+    },
+  ];
+
+  await withMockedBookMethods({
+    find: () => createBookQueryMock(books),
+    countDocuments: async () => books.length,
+  }, async () => {
+    const res = await callController(bookController.getBooks, { query: {} });
+
+    assert.deepEqual(res.payload.data[0].categories, ['Tam ly hoc', 'Ky nang song']);
+    assert.equal(res.payload.data[0].category, 'Tam ly hoc, Ky nang song');
+    assert.deepEqual(res.payload.data[1].categories, ['Tam ly hoc', 'Ky nang song']);
+  });
+});
+
+test('createBook normalizes comma and dash separated categories', async () => {
+  const calls = {};
+
+  await withMockedBookMethod('create', async (payload) => {
+    calls.payload = payload;
+    return payload;
+  }, async () => {
+    const res = await callController(bookController.createBook, {
+      body: {
+        title: 'Thay Doi Ti Hon Hieu Qua Bat Ngo',
+        author: 'James Clear',
+        price: 150000,
+        category: 'Tam ly hoc, Ky nang song - Tam ly hoc',
+      },
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(calls.payload.category, 'Tam ly hoc');
+    assert.deepEqual(calls.payload.categories, ['Tam ly hoc', 'Ky nang song']);
+  });
+});
+
+test('updateBook normalizes provided categories arrays', async () => {
+  const calls = {};
+
+  await withMockedBookMethod('findByIdAndUpdate', async (id, payload) => {
+    calls.id = id;
+    calls.payload = payload;
+    return payload;
+  }, async () => {
+    const res = await callController(bookController.updateBook, {
+      params: { id: 'book-1' },
+      body: {
+        category: 'Ignored primary',
+        categories: ['Tam ly hoc', ' Ky nang song ', 'Tam ly hoc', ''],
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(calls.id, 'book-1');
+    assert.equal(calls.payload.category, 'Tam ly hoc');
+    assert.deepEqual(calls.payload.categories, ['Tam ly hoc', 'Ky nang song']);
   });
 });
 
@@ -315,7 +394,10 @@ test('seedBooks clears old books and inserts six Vietnamese samples', async () =
       assert.deepEqual(res.payload, {
         success: true,
         message: 'Books seeded successfully',
-        data: insertedBooks,
+        data: insertedBooks.map((book) => ({
+          ...book,
+          categories: [book.category],
+        })),
       });
     });
   });

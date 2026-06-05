@@ -63,6 +63,50 @@ const parseFiniteNumber = (value) => {
   return Number.isFinite(number) ? number : null;
 };
 
+const splitCategories = (value) =>
+  String(value)
+    .split(/\s+-\s+|,/)
+    .map((category) => category.trim())
+    .filter(Boolean);
+
+const uniqueCategories = (categories) => Array.from(new Set(categories));
+
+const getNormalizedCategories = (body = {}) => {
+  const categories = Array.isArray(body.categories)
+    ? body.categories.flatMap(splitCategories)
+    : typeof body.category === 'string'
+      ? splitCategories(body.category)
+      : [];
+
+  return uniqueCategories(categories);
+};
+
+const normalizeBookCategories = (body = {}) => {
+  const payload = { ...body };
+  const hasCategoryInput =
+    Array.isArray(payload.categories) || typeof payload.category === 'string';
+
+  if (hasCategoryInput) {
+    const categories = getNormalizedCategories(payload);
+
+    payload.categories = categories;
+    payload.category = categories[0] || payload.category;
+  }
+
+  return payload;
+};
+
+const normalizeBookResponse = (book) => {
+  const plainBook = typeof book?.toObject === 'function' ? book.toObject() : { ...book };
+
+  if ((!Array.isArray(plainBook.categories) || plainBook.categories.length === 0)
+    && typeof plainBook.category === 'string') {
+    plainBook.categories = splitCategories(plainBook.category);
+  }
+
+  return plainBook;
+};
+
 const buildBooksFilter = (query = {}) => {
   const filter = {};
   const search = typeof query.search === 'string' ? query.search.trim() : '';
@@ -73,11 +117,24 @@ const buildBooksFilter = (query = {}) => {
 
   if (search) {
     const searchRegex = buildAccentInsensitiveRegex(search);
-    filter.$or = [{ title: searchRegex }, { author: searchRegex }];
+    filter.$or = [
+      { title: searchRegex },
+      { author: searchRegex },
+      { description: searchRegex },
+      { category: searchRegex },
+      { categories: searchRegex },
+    ];
   }
 
   if (category) {
-    filter.category = category;
+    const categoryFilter = { $or: [{ category }, { categories: category }] };
+
+    if (filter.$or) {
+      filter.$and = [{ $or: filter.$or }, categoryFilter];
+      delete filter.$or;
+    } else {
+      Object.assign(filter, categoryFilter);
+    }
   }
 
   if (minPrice !== null || maxPrice !== null) {
@@ -116,7 +173,7 @@ const getBooks = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Books fetched successfully',
-      data: books,
+      data: books.map(normalizeBookResponse),
       pagination: {
         page,
         limit,
@@ -143,7 +200,7 @@ const getBookById = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Book fetched successfully',
-      data: book,
+      data: normalizeBookResponse(book),
     });
   } catch (error) {
     return next(error);
@@ -152,12 +209,13 @@ const getBookById = async (req, res, next) => {
 
 const createBook = async (req, res, next) => {
   try {
-    const book = await Book.create(req.body);
+    const payload = normalizeBookCategories(req.body);
+    const book = await Book.create(payload);
 
     res.status(201).json({
       success: true,
       message: 'Book created successfully',
-      data: book,
+      data: normalizeBookResponse(book),
     });
   } catch (error) {
     next(error);
@@ -166,7 +224,8 @@ const createBook = async (req, res, next) => {
 
 const updateBook = async (req, res, next) => {
   try {
-    const book = await Book.findByIdAndUpdate(req.params.id, req.body, {
+    const payload = normalizeBookCategories(req.body);
+    const book = await Book.findByIdAndUpdate(req.params.id, payload, {
       new: true,
       runValidators: true,
     });
@@ -181,7 +240,7 @@ const updateBook = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Book updated successfully',
-      data: book,
+      data: normalizeBookResponse(book),
     });
   } catch (error) {
     return next(error);
@@ -202,7 +261,7 @@ const deleteBook = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Book deleted successfully',
-      data: book,
+      data: normalizeBookResponse(book),
     });
   } catch (error) {
     return next(error);
@@ -307,7 +366,7 @@ const seedBooks = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Books seeded successfully',
-      data: books,
+      data: books.map(normalizeBookResponse),
     });
   } catch (error) {
     next(error);
