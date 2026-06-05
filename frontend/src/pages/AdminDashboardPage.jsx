@@ -3,11 +3,11 @@ import { Link, useOutletContext } from "react-router-dom";
 import { getAdminBooks, getAdminOrders } from "../services/api";
 
 const statusLabels = {
-  pending: "Cho xac nhan",
-  confirmed: "Da xac nhan",
-  shipped: "Dang giao",
-  delivered: "Da giao",
-  cancelled: "Da huy",
+  pending: "Chờ xác nhận",
+  confirmed: "Đã xác nhận",
+  shipped: "Đang giao",
+  delivered: "Đã giao",
+  cancelled: "Đã hủy",
 };
 
 const formatCurrency = (value) => {
@@ -47,7 +47,7 @@ function AdminDashboardPage() {
         }
       } catch (dashboardError) {
         if (dashboardError.name !== "AbortError" && isActive) {
-          setError(dashboardError.message || "Khong the tai dashboard.");
+          setError(dashboardError.message || "Không thể tải tổng quan.");
         }
       } finally {
         if (isActive) {
@@ -76,40 +76,40 @@ function AdminDashboardPage() {
     <section className="admin-page fade-up">
       <div className="admin-page__header">
         <div>
-          <p className="eyebrow">Tong quan</p>
-          <h1>Xin chao, {user.name || "Admin"}</h1>
-          <p>Quan ly sach va don hang Readora tu mot man hinh gon gang.</p>
+          <p className="eyebrow">TỔNG QUAN</p>
+          <h1>Xin chào, {user.name || "Admin"}</h1>
+          <p>Quản lý sách, đơn hàng và đánh giá Readora trong một màn hình.</p>
         </div>
         <div className="admin-page__actions">
           <Link className="button button--secondary" to="/admin/orders">
-            Xu ly don
+            Xem tất cả
           </Link>
           <Link className="button button--primary" to="/admin/books">
-            Them sach
+            Thêm sách
           </Link>
         </div>
       </div>
 
-      {loading && <p className="state-message">Dang tai dashboard...</p>}
+      {loading && <p className="state-message">Đang tải tổng quan...</p>}
       {!loading && error && <p className="state-message state-message--error">{error}</p>}
 
       {!loading && !error && (
         <>
           <div className="admin-stats">
             <article className="admin-stat">
-              <span>Books</span>
+              <span>Sách</span>
               <strong>{books.length}</strong>
             </article>
             <article className="admin-stat">
-              <span>Orders</span>
+              <span>Đơn hàng</span>
               <strong>{orders.length}</strong>
             </article>
             <article className="admin-stat">
-              <span>Pending</span>
+              <span>Chờ xử lý</span>
               <strong>{pendingOrders}</strong>
             </article>
             <article className="admin-stat">
-              <span>Revenue delivered</span>
+              <span>Doanh thu đã giao</span>
               <strong>{formatCurrency(deliveredRevenue)}</strong>
             </article>
           </div>
@@ -117,30 +117,30 @@ function AdminDashboardPage() {
           <section className="admin-panel">
             <div className="admin-panel__header">
               <div>
-                <p className="eyebrow">Gan day</p>
-                <h2>Don hang moi</h2>
+                <p className="eyebrow">GẦN ĐÂY</p>
+                <h2>Đơn hàng mới</h2>
               </div>
-              <Link to="/admin/orders">Xem tat ca</Link>
+              <Link to="/admin/orders">Xem tất cả</Link>
             </div>
 
             {recentOrders.length === 0 ? (
-              <p className="state-message">Chua co don hang.</p>
+              <p className="state-message">Chưa có đơn hàng.</p>
             ) : (
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>Ma don</th>
-                      <th>Khach hang</th>
-                      <th>Trang thai</th>
-                      <th>Tong tien</th>
+                      <th>Mã đơn</th>
+                      <th>Khách hàng</th>
+                      <th>Trạng thái</th>
+                      <th>Tổng tiền</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentOrders.map((order) => (
                       <tr key={order._id}>
                         <td>#{String(order._id).slice(-8).toUpperCase()}</td>
-                        <td>{order.user?.name || order.user?.email || "Khach hang"}</td>
+                        <td>{order.user?.name || order.user?.email || "Khách hàng"}</td>
                         <td>
                           <span className={`admin-status admin-status--${order.status}`}>
                             {statusLabels[order.status] || order.status}

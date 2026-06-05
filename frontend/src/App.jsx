@@ -6,6 +6,7 @@ import AboutPage from "./pages/AboutPage";
 import AdminBooksPage from "./pages/AdminBooksPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminOrdersPage from "./pages/AdminOrdersPage";
+import AdminReviewsPage from "./pages/AdminReviewsPage";
 import BookDetailPage from "./pages/BookDetailPage";
 import BooksPage from "./pages/BooksPage";
 import BlogPage from "./pages/BlogPage";
@@ -36,6 +37,7 @@ function App() {
             <Route index element={<AdminDashboardPage />} />
             <Route path="books" element={<AdminBooksPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="reviews" element={<AdminReviewsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { getBookReviews, createBookReview } from "../services/api";
 
 function OrderItemReview({ bookId, orderId, orderStatus }) {
@@ -76,7 +76,7 @@ function OrderItemReview({ bookId, orderId, orderStatus }) {
       const msg = err?.message || "";
       if (
         msg.includes("đánh giá sách này trong đơn hàng này") ||
-        msg.includes("danh gia sach nay trong don hang nay")
+        msg.includes("đánh giá sách này trong đơn hàng này")
       ) {
         setIsReviewed(true);
         setIsOpen(false);

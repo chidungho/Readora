@@ -1,4 +1,4 @@
-﻿.app-shell {
+.app-shell {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
@@ -2351,6 +2351,38 @@ body[data-theme="dark"] .admin-shell {
   flex-wrap: wrap;
 }
 
+.admin-cover-field,
+.admin-cover-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-cover-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-cover-tabs .button,
+.admin-cover-actions .button {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.admin-cover-preview img,
+.admin-cover-video {
+  width: min(220px, 100%);
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface-strong);
+  object-fit: cover;
+}
+
+.admin-cover-video {
+  aspect-ratio: 4 / 3;
+}
+
 .admin-book-list {
   display: grid;
   gap: 12px;
@@ -2866,7 +2898,6 @@ body[data-theme="dark"] .admin-shell {
     justify-items: start;
   }
 }
-
 
 
 

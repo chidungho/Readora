@@ -16,6 +16,15 @@ const registerSocketConnectionLogs = (io) => {
   io.on('connection', (socket) => {
     console.log('socket connected', socket.id);
 
+    socket.on('user:join', (payload) => {
+      const userId = payload?.userId || payload;
+      const normalizedUserId = String(userId || '').trim();
+
+      if (normalizedUserId) {
+        socket.join(`user:${normalizedUserId}`);
+      }
+    });
+
     socket.on('disconnect', (reason) => {
       console.log('socket disconnected', socket.id, reason);
     });

@@ -1,4 +1,4 @@
-﻿const Review = require("../models/review.model");
+const Review = require("../models/review.model");
 const Book = require("../models/book.model");
 const Order = require("../models/order.model");
 const mongoose = require("mongoose");
@@ -136,28 +136,41 @@ const createBookReview = async (req, res, next) => {
     await book.save();
 
     // 11. Populate user để trả về
-    const populatedReview = await Review.findById(review._id).populate(
-      "user",
-      "name avatar"
-    );
+    const populatedReview = await Review.findById(review._id).populate([
+      { path: "user", select: "name email" },
+      { path: "book", select: "title coverImage" },
+      { path: "order", select: "orderCode" },
+    ]);
 
     // 12. Socket emit thông báo realtime
     const io = req.app ? req.app.get("io") : null;
     if (io) {
-      const orderIdStr = typeof orderId === "object" ? String(orderId) : orderId;
+      const reviewPayload = {
+        _id: populatedReview._id,
+        user: {
+          name: populatedReview.user?.name || "Người dùng",
+          email: populatedReview.user?.email || "",
+        },
+        book: {
+          title: populatedReview.book?.title || book.title,
+          coverImage: populatedReview.book?.coverImage || book.coverImage || "",
+        },
+        order: {
+          orderCode: populatedReview.order?.orderCode || order.orderCode || "",
+        },
+        rating: populatedReview.rating,
+        comment: populatedReview.comment || "",
+        createdAt: populatedReview.createdAt,
+      };
       const payload = {
         type: "review",
-        message: "Có đánh giá mới",
-        bookTitle: book.title,
-        userName: populatedReview?.user?.name || "Người dùng",
-        rating: ratingNum,
-        comment: populatedReview?.comment || "",
-        createdAt: new Date(
-          populatedReview?.createdAt || review.createdAt || Date.now()
-        ).toISOString(),
-        orderId: orderIdStr,
+        title: "Có đánh giá mới",
+        message: `${reviewPayload.user.name} vừa đánh giá ${reviewPayload.book.title}`,
+        detail: `${reviewPayload.rating}/5 sao`,
+        review: reviewPayload,
+        createdAt: new Date(populatedReview.createdAt || Date.now()).toISOString(),
       };
-      console.log("[review] emit admin:new-review", payload);
+      console.log("[socket emit] admin:new-review", payload.review?._id);
       io.emit("admin:new-review", payload);
     }
 

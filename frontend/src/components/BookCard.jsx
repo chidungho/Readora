@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { FALLBACK_COVER_IMAGE } from "../services/api";
 
 const formatCurrency = (value) => {

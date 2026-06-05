@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 import { getAdminOrders, updateAdminOrderStatus } from "../services/api";
+import { socket } from "../services/socket";
 
 const orderStatuses = [
-  { value: "pending", label: "Cho xac nhan" },
-  { value: "confirmed", label: "Da xac nhan" },
-  { value: "shipped", label: "Dang giao" },
-  { value: "delivered", label: "Da giao" },
-  { value: "cancelled", label: "Da huy" },
+  { value: "pending", label: "Chờ xác nhận" },
+  { value: "confirmed", label: "Đã xác nhận" },
+  { value: "shipped", label: "Đang giao" },
+  { value: "delivered", label: "Đã giao" },
+  { value: "cancelled", label: "Đã hủy" },
 ];
 
 const paymentStatusOptions = [
-  { value: "unpaid", label: "Chua thanh toan" },
-  { value: "paid", label: "Da thanh toan" },
+  { value: "unpaid", label: "Chưa thanh toán" },
+  { value: "paid", label: "Đã thanh toán" },
 ];
 
 const paymentMethodLabels = {
   cod: "COD",
-  bank_transfer: "Chuyen khoan",
+  bank_transfer: "Chuyển khoản",
 };
 
 const paymentStatusLabels = paymentStatusOptions.reduce((labels, status) => {
@@ -44,13 +45,13 @@ const formatCurrency = (value) => {
 
 const formatDate = (value) => {
   if (!value) {
-    return "Dang cap nhat";
+    return "Đang cập nhật";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Dang cap nhat";
+    return "Đang cập nhật";
   }
 
   return new Intl.DateTimeFormat("vi-VN", {
@@ -72,6 +73,25 @@ function AdminOrdersPage() {
   };
 
   useEffect(() => {
+    const handleNewOrder = (payload = {}) => {
+      console.log("[admin orders] received admin:new-order", payload);
+      const newOrder = payload.order || payload;
+      if (!newOrder?._id) return;
+
+      setOrders((prev) =>
+        prev.some((order) => order._id === newOrder._id) ? prev : [newOrder, ...prev],
+      );
+    };
+
+    socket.connect();
+    socket.on("admin:new-order", handleNewOrder);
+
+    return () => {
+      socket.off("admin:new-order", handleNewOrder);
+    };
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
 
@@ -84,7 +104,7 @@ function AdminOrdersPage() {
         }
       } catch (ordersError) {
         if (ordersError.name !== "AbortError" && isActive) {
-          setError(ordersError.message || "Khong the tai don hang.");
+          setError(ordersError.message || "Không thể tải đơn hàng.");
         }
       } finally {
         if (isActive) {
@@ -109,9 +129,9 @@ function AdminOrdersPage() {
     try {
       await updateAdminOrderStatus(order._id, payload);
       await loadOrders();
-      setMessage("Da cap nhat trang thai don hang.");
+      setMessage("Đã cập nhật trạng thái đơn hàng.");
     } catch (statusError) {
-      setError(statusError.message || "Khong the doi trang thai don hang.");
+      setError(statusError.message || "Không thể đổi trạng thái đơn hàng.");
     } finally {
       setChangingOrderId("");
     }
@@ -127,26 +147,26 @@ function AdminOrdersPage() {
     <section className="admin-page fade-up">
       <div className="admin-page__header">
         <div>
-          <p className="eyebrow">Orders</p>
-          <h1>Quan ly don hang</h1>
-          <p>Xem tat ca don hang va doi trang thai xu ly.</p>
+          <p className="eyebrow">ĐƠN HÀNG</p>
+          <h1>Quản lý đơn hàng</h1>
+          <p>Xem tất cả đơn hàng và đổi trạng thái xử lý.</p>
         </div>
       </div>
 
       {message && <p className="cart-feedback">{message}</p>}
       {error && <p className="state-message state-message--error">{error}</p>}
-      {loading && <p className="state-message">Dang tai don hang...</p>}
+      {loading && <p className="state-message">Đang tải đơn hàng...</p>}
 
       {!loading && !error && orders.length === 0 && (
-        <p className="state-message">Chua co don hang nao.</p>
+        <p className="state-message">Chưa có đơn hàng nào.</p>
       )}
 
       {!loading && !error && orders.length > 0 && (
         <section className="admin-panel">
           <div className="admin-panel__header">
             <div>
-              <p className="eyebrow">Danh sach</p>
-              <h2>{orders.length} don hang</h2>
+              <p className="eyebrow">DANH SÁCH</p>
+              <h2>{orders.length} đơn hàng</h2>
             </div>
           </div>
 
@@ -154,13 +174,13 @@ function AdminOrdersPage() {
             <table className="admin-table admin-table--orders">
               <thead>
                 <tr>
-                  <th>Ma don</th>
-                  <th>Khach hang</th>
-                  <th>San pham</th>
-                  <th>Ngay dat</th>
-                  <th>Tong tien</th>
-                  <th>Thanh toan</th>
-                  <th>Trang thai</th>
+                  <th>Mã đơn</th>
+                  <th>Khách hàng</th>
+                  <th>Sản phẩm</th>
+                  <th>Ngày đặt</th>
+                  <th>Tổng tiền</th>
+                  <th>Thanh toán</th>
+                  <th>Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
@@ -168,10 +188,10 @@ function AdminOrdersPage() {
                   <tr key={order._id}>
                     <td>#{order.orderCode || String(order._id).slice(-8).toUpperCase()}</td>
                     <td>
-                      <strong>{order.user?.name || "Khach hang"}</strong>
+                      <strong>{order.user?.name || "Khách hàng"}</strong>
                       <span>{order.user?.email || order.shippingAddress?.phone || ""}</span>
                     </td>
-                    <td>{(order.items || []).length} sach</td>
+                    <td>{(order.items || []).length} sách</td>
                     <td>{formatDate(order.createdAt)}</td>
                     <td>{formatCurrency(order.totalAmount)}</td>
                     <td>
@@ -190,7 +210,7 @@ function AdminOrdersPage() {
                             </option>
                           ))}
                         </select>
-                        <small>{paymentStatusLabels[order.paymentStatus] || "Chua thanh toan"}</small>
+                        <small>{paymentStatusLabels[order.paymentStatus] || "Chưa thanh toán"}</small>
                       </label>
                     </td>
                     <td>

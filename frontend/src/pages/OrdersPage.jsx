@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import { FALLBACK_COVER_IMAGE, cancelOrder, getMyOrders } from "../services/api";
 import OrderItemReview from "../components/OrderItemReview";
+import { socket } from "../services/socket";
 
 const statusLabels = {
   pending: "Chờ xác nhận",
@@ -66,6 +67,53 @@ function OrdersPage() {
   );
   const [cancelError, setCancelError] = useState("");
   const [cancellingOrderId, setCancellingOrderId] = useState("");
+
+  useEffect(() => {
+    if (loading || error || orders.length === 0) {
+      return undefined;
+    }
+
+    let userId;
+
+    try {
+      const savedUser = window.localStorage.getItem("readora_user");
+      const currentUser = savedUser ? JSON.parse(savedUser) : null;
+      userId = currentUser?._id || currentUser?.id || "";
+    } catch {
+      userId = undefined;
+    }
+
+    const handleOrderUpdated = (payload) => {
+      console.log("[user orders] received user:order-updated", payload);
+
+      const updatedOrder = payload.order || payload;
+
+      if (!updatedOrder?._id || !orders.some((order) => order._id === updatedOrder._id)) {
+        return;
+      }
+
+      const statusLabel = statusLabels[updatedOrder.status] || updatedOrder.status;
+
+      setOrders((previousOrders) =>
+        previousOrders.map((order) => (order._id === updatedOrder._id ? updatedOrder : order)),
+      );
+      setFeedbackMessage(
+        `\u0110\u01a1n #${updatedOrder.orderCode} \u0111\u00e3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i: ${statusLabel}`,
+      );
+    };
+
+    socket.connect();
+
+    if (userId) {
+      socket.emit("user:join", { userId });
+    }
+
+    socket.on("user:order-updated", handleOrderUpdated);
+
+    return () => {
+      socket.off("user:order-updated", handleOrderUpdated);
+    };
+  }, [error, loading, orders]);
 
   useEffect(() => {
     const controller = new AbortController();

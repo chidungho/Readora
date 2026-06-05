@@ -14,6 +14,39 @@ const sortOptions = {
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const vietnameseSearchChars = {
+  a: 'aàáảãạăằắẳẵặâầấẩẫậ',
+  e: 'eèéẻẽẹêềếểễệ',
+  i: 'iìíỉĩị',
+  o: 'oòóỏõọôồốổỗộơờớởỡợ',
+  u: 'uùúủũụưừứửữự',
+  y: 'yỳýỷỹỵ',
+  d: 'dđ',
+};
+
+const buildAccentInsensitiveRegex = (value) => {
+  const pattern = value
+    .trim()
+    .split('')
+    .map((character) => {
+      if (/\s/.test(character)) {
+        return '\\s+';
+      }
+
+      const lowerCharacter = character.toLocaleLowerCase('vi-VN');
+      const searchChars = vietnameseSearchChars[lowerCharacter];
+
+      if (!searchChars) {
+        return escapeRegExp(character);
+      }
+
+      return `[${searchChars}${searchChars.toLocaleUpperCase('vi-VN')}]`;
+    })
+    .join('');
+
+  return new RegExp(pattern, 'i');
+};
+
 const parsePositiveInteger = (value, fallback) => {
   const number = Number.parseInt(value, 10);
 
@@ -39,7 +72,7 @@ const buildBooksFilter = (query = {}) => {
   const rating = parseFiniteNumber(query.rating);
 
   if (search) {
-    const searchRegex = new RegExp(escapeRegExp(search), 'i');
+    const searchRegex = buildAccentInsensitiveRegex(search);
     filter.$or = [{ title: searchRegex }, { author: searchRegex }];
   }
 

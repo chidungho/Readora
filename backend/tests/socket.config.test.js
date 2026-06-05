@@ -45,9 +45,11 @@ test('Socket.IO CORS origins preserve custom CLIENT_ORIGIN values', () => {
   });
 });
 
-test('Socket.IO connection logging records connect and disconnect events', () => {
+test('Socket.IO connection logging records connect, user room join, and disconnect events', () => {
   let connectionHandler;
   let disconnectHandler;
+  let userJoinHandler;
+  const joinedRooms = [];
   const logs = [];
   const originalLog = console.log;
 
@@ -64,6 +66,13 @@ test('Socket.IO connection logging records connect and disconnect events', () =>
       if (eventName === 'disconnect') {
         disconnectHandler = handler;
       }
+
+      if (eventName === 'user:join') {
+        userJoinHandler = handler;
+      }
+    },
+    join(room) {
+      joinedRooms.push(room);
     },
   };
 
@@ -74,11 +83,13 @@ test('Socket.IO connection logging records connect and disconnect events', () =>
   try {
     registerSocketConnectionLogs(io);
     connectionHandler(socket);
+    userJoinHandler({ userId: 'user-1' });
     disconnectHandler('client namespace disconnect');
   } finally {
     console.log = originalLog;
   }
 
+  assert.deepEqual(joinedRooms, ['user:user-1']);
   assert.deepEqual(logs, [
     ['socket connected', 'socket-123'],
     ['socket disconnected', 'socket-123', 'client namespace disconnect'],

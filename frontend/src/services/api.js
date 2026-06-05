@@ -1,4 +1,5 @@
 export const baseURL = "http://localhost:5000/api";
+export const API_ORIGIN = baseURL.replace(/\/api$/, "");
 
 const fallbackCoverSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
@@ -311,6 +312,31 @@ export const deleteAdminBook = async (id) =>
     method: "DELETE",
   });
 
+export const uploadBookCover = async (file) => {
+  const token = localStorage.getItem("readora_token");
+  const formData = new FormData();
+
+  formData.append("cover", file);
+
+  const endpoint = `${baseURL}/admin/uploads/book-cover`;
+  console.log("[cover upload] endpoint", endpoint);
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.message || DEFAULT_ERROR_MESSAGE);
+  }
+
+  return data;
+};
+
 export const getAdminOrders = async (options = {}) => {
   const data = await requestWithAuth("/admin/orders", options);
 
@@ -322,6 +348,12 @@ export const updateAdminOrderStatus = async (id, statusOrPayload) => {
     typeof statusOrPayload === "string" ? { status: statusOrPayload } : statusOrPayload;
 
   return sendAdminJson(`/admin/orders/${id}/status`, "PATCH", payload);
+};
+
+export const getAdminReviews = async (options = {}) => {
+  const data = await requestWithAuth("/admin/reviews", options);
+
+  return Array.isArray(data) ? data : [];
 };
 
 // Reviews

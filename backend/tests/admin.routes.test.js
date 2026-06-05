@@ -14,6 +14,7 @@ test('Admin routes expose books and orders behind admin middleware', () => {
     { path: '/books/:id', method: 'delete', handlers: ['deleteBook'] },
     { path: '/orders', method: 'get', handlers: ['getAdminOrders'] },
     { path: '/orders/:id/status', method: 'patch', handlers: ['updateAdminOrderStatus'] },
+    { path: '/reviews', method: 'get', handlers: ['getAdminReviews'] },
   ];
 
   assert.ok(adminLayer, 'adminMiddleware is missing from admin router');
@@ -54,7 +55,7 @@ const requestApp = async (path, options = {}) => {
 };
 
 test('App mounts admin routes at /api/admin and protects them with auth', async () => {
-  const { response, payload } = await requestApp('/api/admin/books');
+  const { response, payload } = await requestApp('/api/admin/reviews');
 
   assert.equal(response.status, 401);
   assert.deepEqual(payload, {

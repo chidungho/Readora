@@ -102,7 +102,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
           // Not logged in
         }
       } catch (err) {
-        setError(err.message || "Khong the tai danh gia.");
+        setError(err.message || "Không thể tải đánh giá.");
       } finally {
         setLoading(false);
         setCheckingCondition(false);
@@ -130,7 +130,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
       setCanReview(false);
       if (onReviewSubmitted) onReviewSubmitted();
     } catch (err) {
-      setSubmitError(err.message || "Khong the gui danh gia.");
+      setSubmitError(err.message || "Không thể gửi đánh giá.");
     } finally {
       setSubmitting(false);
     }

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  API_ORIGIN,
   createAdminBook,
   deleteAdminBook,
   FALLBACK_COVER_IMAGE,
   getAdminBooks,
   updateAdminBook,
+  uploadBookCover,
 } from "../services/api";
 
 const emptyForm = {
@@ -22,7 +24,7 @@ const formatCurrency = (value) => {
   const number = Number(value);
 
   if (!Number.isFinite(number)) {
-    return "Dang cap nhat";
+    return "Đang cập nhật";
   }
 
   return new Intl.NumberFormat("vi-VN", {
@@ -40,11 +42,17 @@ const toNumber = (value, fallback = 0) => {
 function AdminBooksPage() {
   const [books, setBooks] = useState([]);
   const [form, setForm] = useState(emptyForm);
+  const [coverMode, setCoverMode] = useState("url");
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverError, setCoverError] = useState("");
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraMessage, setCameraMessage] = useState("");
   const [editingBookId, setEditingBookId] = useState("");
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const videoRef = useRef(null);
 
   const loadBooks = async (options = {}) => {
     const nextBooks = await getAdminBooks(options);
@@ -64,7 +72,7 @@ function AdminBooksPage() {
         }
       } catch (booksError) {
         if (booksError.name !== "AbortError" && isActive) {
-          setError(booksError.message || "Khong the tai sach.");
+          setError(booksError.message || "Không thể tải sách.");
         }
       } finally {
         if (isActive) {
@@ -81,6 +89,13 @@ function AdminBooksPage() {
     };
   }, []);
 
+  useEffect(
+    () => () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    },
+    [cameraStream],
+  );
+
   const handleFormChange = (event) => {
     const { name, value } = event.target;
 
@@ -90,15 +105,162 @@ function AdminBooksPage() {
     }));
   };
 
+  const stopCamera = () => {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setCameraMessage("");
+  };
+
+  const handleCoverModeChange = (mode) => {
+    setCoverMode(mode);
+    setCoverError("");
+    setCameraMessage("");
+
+    if (mode === "camera") {
+      startCamera();
+      return;
+    }
+
+    stopCamera();
+  };
+
+  const handleUploadCover = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    console.log("[cover upload] selected file", {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+    });
+
+    if (!file.type.startsWith("image/")) {
+      setCoverError("Chỉ nhận file ảnh.");
+      return "";
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setCoverError("Ảnh bìa không được vượt quá 5MB.");
+      return "";
+    }
+
+    setUploadingCover(true);
+    setCoverError("");
+
+    try {
+      const response = await uploadBookCover(file);
+      console.log("[cover upload] response", response);
+      const finalUrl = response.url.startsWith("http")
+        ? response.url
+        : `${API_ORIGIN}${response.url}`;
+
+      setForm((currentForm) => ({
+        ...currentForm,
+        coverImage: finalUrl,
+      }));
+      setCoverError("");
+      setMessage("Đã tải ảnh bìa lên.");
+      return finalUrl;
+    } catch (uploadError) {
+      setCoverError(uploadError.message || "Không thể tải ảnh bìa lên.");
+      return "";
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleCoverFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await handleUploadCover(file);
+    event.target.value = "";
+  };
+
+  const startCamera = async () => {
+    console.log("[camera] starting");
+    setCoverError("");
+    setCameraMessage("");
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraMessage("Thiết bị không hỗ trợ camera.");
+      return;
+    }
+
+    try {
+      stopCamera();
+      let stream;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+        });
+      } catch (environmentError) {
+        console.log("[camera] error", environmentError);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      setCameraStream(stream);
+      const video = videoRef.current;
+
+      if (video) {
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        await video.play().catch(() => {});
+      }
+    } catch (cameraError) {
+      console.log("[camera] error", cameraError);
+      setCameraMessage(cameraError.message || "Không thể mở camera.");
+    }
+  };
+
+  const handleCaptureCover = () => {
+    console.log("[camera] capture clicked");
+    const video = videoRef.current;
+
+    if (!video || !video.videoWidth) {
+      setCoverError("Camera chưa sẵn sàng, vui lòng thử lại.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      console.log("[camera] blob created", blob && { type: blob.type, size: blob.size });
+
+      if (!blob) {
+        setCoverError("Không chụp được ảnh.");
+        return;
+      }
+
+      const file = new File([blob], `book-cover-${Date.now()}.jpg`, { type: "image/jpeg" });
+      const uploadedUrl = await handleUploadCover(file);
+      console.log("[camera] uploaded", uploadedUrl);
+      stopCamera();
+    }, "image/jpeg", 0.9);
+  };
+
   const resetForm = () => {
+    stopCamera();
     setForm(emptyForm);
     setEditingBookId("");
+    setCoverMode("url");
+    setCoverError("");
   };
 
   const handleEditBook = (book) => {
     setEditingBookId(book._id);
     setMessage("");
     setError("");
+    setCoverError("");
+    setCoverMode("url");
+    stopCamera();
     setForm({
       title: book.title || "",
       author: book.author || "",
@@ -133,23 +295,23 @@ function AdminBooksPage() {
     try {
       if (editingBookId) {
         await updateAdminBook(editingBookId, payload);
-        setMessage("Da cap nhat sach.");
+        setMessage("Đã cập nhật sách.");
       } else {
         await createAdminBook(payload);
-        setMessage("Da them sach moi.");
+        setMessage("Đã thêm sách mới.");
       }
 
       resetForm();
       await loadBooks();
     } catch (submitError) {
-      setError(submitError.message || "Khong the luu sach.");
+      setError(submitError.message || "Không thể lưu sách.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteBook = async (book) => {
-    const confirmed = window.confirm(`Xoa sach "${book.title}"?`);
+    const confirmed = window.confirm(`Xóa sách "${book.title}"?`);
 
     if (!confirmed) {
       return;
@@ -161,9 +323,9 @@ function AdminBooksPage() {
     try {
       await deleteAdminBook(book._id);
       await loadBooks();
-      setMessage("Da xoa sach.");
+      setMessage("Đã xóa sách.");
     } catch (deleteError) {
-      setError(deleteError.message || "Khong the xoa sach.");
+      setError(deleteError.message || "Không thể xóa sách.");
     }
   };
 
@@ -171,9 +333,9 @@ function AdminBooksPage() {
     <section className="admin-page fade-up">
       <div className="admin-page__header">
         <div>
-          <p className="eyebrow">Books</p>
-          <h1>Quan ly sach</h1>
-          <p>Them, sua va xoa sach. Cover image nhap bang URL, khong upload file.</p>
+          <p className="eyebrow">SÁCH</p>
+          <h1>Quản lý sách</h1>
+          <p>Thêm, sửa và xóa sách. Ảnh bìa có thể dùng URL, tải lên hoặc chụp trực tiếp.</p>
         </div>
       </div>
 
@@ -183,12 +345,12 @@ function AdminBooksPage() {
       <div className="admin-books-layout">
         <form className="admin-form" onSubmit={handleSubmit}>
           <div>
-            <p className="eyebrow">{editingBookId ? "Dang sua" : "Sach moi"}</p>
-            <h2>{editingBookId ? "Sua sach" : "Them sach"}</h2>
+            <p className="eyebrow">{editingBookId ? "Đang sửa" : "SÁCH MỚI"}</p>
+            <h2>{editingBookId ? "Cập nhật sách" : "Thêm sách"}</h2>
           </div>
 
           <label className="form-group">
-            Ten sach
+            Tên sách
             <input
               name="title"
               value={form.title}
@@ -199,7 +361,7 @@ function AdminBooksPage() {
           </label>
 
           <label className="form-group">
-            Tac gia
+            Tác giả
             <input
               name="author"
               value={form.author}
@@ -211,18 +373,18 @@ function AdminBooksPage() {
 
           <div className="admin-form__grid">
             <label className="form-group">
-              Danh muc
+              Danh mục
               <input
                 name="category"
                 value={form.category}
                 onChange={handleFormChange}
-                placeholder="Cong nghe"
+                placeholder="Công nghệ"
                 required
               />
             </label>
 
             <label className="form-group">
-              Ton kho
+              Tồn kho
               <input
                 min="0"
                 name="stock"
@@ -236,7 +398,7 @@ function AdminBooksPage() {
 
           <div className="admin-form__grid">
             <label className="form-group">
-              Gia
+              Giá
               <input
                 min="0"
                 name="price"
@@ -249,7 +411,7 @@ function AdminBooksPage() {
             </label>
 
             <label className="form-group">
-              Gia goc
+              Giá gốc
               <input
                 min="0"
                 name="originalPrice"
@@ -261,35 +423,108 @@ function AdminBooksPage() {
             </label>
           </div>
 
-          <label className="form-group">
-            Cover image URL
-            <input
-              name="coverImage"
-              type="url"
-              value={form.coverImage}
-              onChange={handleFormChange}
-              placeholder="https://example.com/book.jpg"
-            />
-          </label>
+          <div className="form-group admin-cover-field">
+            <span>Ảnh bìa</span>
+            <div className="admin-cover-tabs" role="tablist" aria-label="Chọn nguồn ảnh bìa">
+              {[
+                ["url", "URL"],
+                ["upload", "Tải ảnh lên"],
+                ["camera", "Chụp ảnh"],
+              ].map(([mode, label]) => (
+                <button
+                  className={`button ${coverMode === mode ? "button--primary" : "button--secondary"}`}
+                  key={mode}
+                  type="button"
+                  onClick={() => handleCoverModeChange(mode)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {coverMode === "url" && (
+              <input
+                name="coverImage"
+                type="url"
+                value={form.coverImage}
+                onChange={handleFormChange}
+                placeholder="https://example.com/book.jpg"
+              />
+            )}
+
+            {coverMode === "upload" && (
+              <div className="admin-cover-actions">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleCoverFileChange}
+                />
+                {uploadingCover && <p className="state-message">Đang tải ảnh bìa...</p>}
+              </div>
+            )}
+
+            {coverMode === "camera" && (
+              <div className="admin-cover-actions">
+                {!cameraStream && (
+                  <button className="button button--secondary" type="button" onClick={startCamera}>
+                    Mở camera
+                  </button>
+                )}
+                {cameraMessage && <p className="state-message state-message--error">{cameraMessage}</p>}
+                {cameraStream && (
+                  <>
+                    <video className="admin-cover-video" ref={videoRef} autoPlay muted playsInline />
+                    <div className="admin-form__actions">
+                      <button
+                        className="button button--primary"
+                        disabled={uploadingCover}
+                        type="button"
+                        onClick={handleCaptureCover}
+                      >
+                        Chụp ảnh
+                      </button>
+                      <button className="button button--secondary" type="button" onClick={stopCamera}>
+                        Tắt camera
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {coverError && <p className="state-message state-message--error">{coverError}</p>}
+            {form.coverImage && (
+              <div className="admin-cover-preview">
+                <img
+                  src={form.coverImage}
+                  alt="Preview ảnh bìa"
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = FALLBACK_COVER_IMAGE;
+                  }}
+                />
+              </div>
+            )}
+          </div>
 
           <label className="form-group">
-            Mo ta
+            Mô tả
             <textarea
               name="description"
               value={form.description}
               onChange={handleFormChange}
-              placeholder="Mo ta ngan ve sach"
+              placeholder="Mô tả ngắn về sách"
               rows="4"
             />
           </label>
 
           <div className="admin-form__actions">
             <button className="button button--primary" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Dang luu..." : editingBookId ? "Luu thay doi" : "Them sach"}
+              {isSubmitting ? "Đang lưu..." : editingBookId ? "Cập nhật sách" : "Lưu sách"}
             </button>
             {editingBookId && (
               <button className="button button--secondary" type="button" onClick={resetForm}>
-                Huy sua
+                Hủy
               </button>
             )}
           </div>
@@ -298,14 +533,14 @@ function AdminBooksPage() {
         <section className="admin-panel">
           <div className="admin-panel__header">
             <div>
-              <p className="eyebrow">Danh sach</p>
-              <h2>{books.length} sach</h2>
+              <p className="eyebrow">DANH SÁCH</p>
+              <h2>{books.length} sách</h2>
             </div>
           </div>
 
-          {loading && <p className="state-message">Dang tai sach...</p>}
+          {loading && <p className="state-message">Đang tải sách...</p>}
           {!loading && books.length === 0 && (
-            <p className="state-message">Chua co sach nao trong he thong.</p>
+            <p className="state-message">Chưa có sách nào trong hệ thống.</p>
           )}
 
           {!loading && books.length > 0 && (
@@ -327,7 +562,7 @@ function AdminBooksPage() {
                   </div>
                   <div className="admin-book-row__meta">
                     <strong>{formatCurrency(book.price)}</strong>
-                    <span>Stock: {book.stock}</span>
+                    <span>Tồn kho: {book.stock}</span>
                   </div>
                   <div className="admin-row-actions">
                     <button
@@ -335,14 +570,14 @@ function AdminBooksPage() {
                       type="button"
                       onClick={() => handleEditBook(book)}
                     >
-                      Sua
+                      Sửa
                     </button>
                     <button
                       className="button button--danger"
                       type="button"
                       onClick={() => handleDeleteBook(book)}
                     >
-                      Xoa
+                      Xóa
                     </button>
                   </div>
                 </article>

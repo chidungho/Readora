@@ -1,7 +1,8 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const loadOrder = () => require('../src/models/order.model');
+const loadBook = () => require('../src/models/book.model');
 const loadOrderController = () => require('../src/controllers/order.controller');
 
 const mockResponse = () => ({
@@ -50,6 +51,37 @@ const withMockedOrderMethod = async (methodName, mockFn, action) => {
   }
 };
 
+
+const withMockedBookMethod = async (methodName, mockFn, action) => {
+  const Book = loadBook();
+  const hadOwnMethod = Object.prototype.hasOwnProperty.call(Book, methodName);
+  const originalMethod = Book[methodName];
+
+  Book[methodName] = mockFn;
+
+  try {
+    return await action();
+  } finally {
+    if (hadOwnMethod) {
+      Book[methodName] = originalMethod;
+    } else {
+      delete Book[methodName];
+    }
+  }
+};
+
+const createMockBook = (overrides = {}) => ({
+  _id: '507f1f77bcf86cd799439011',
+  title: 'Clean Code',
+  stock: 10,
+  sold: 1,
+  saveCalls: 0,
+  async save() {
+    this.saveCalls += 1;
+    return this;
+  },
+  ...overrides,
+});
 const shippingAddress = {
   fullName: 'Nguyen Van A',
   phone: '0909123456',
@@ -139,8 +171,10 @@ test('createOrder returns 400 when cart items are missing', async () => {
   });
 });
 
-test('createOrder saves the authenticated user, cart items, address, and total', async () => {
+test('createOrder saves the authenticated user, cart items, address, total, and deducts stock', async () => {
   const orderController = loadOrderController();
+  const book = createMockBook();
+  const emittedEvents = [];
   const createdOrder = {
     _id: 'order-1',
     user: 'user-1',
@@ -150,9 +184,11 @@ test('createOrder saves the authenticated user, cart items, address, and total',
     status: 'pending',
     paymentMethod: 'cod',
     paymentStatus: 'unpaid',
+    orderCode: 'ORDER1',
+    createdAt: new Date('2026-06-05T00:00:00.000Z'),
   };
 
-  await withMockedOrderMethod('create', async (data) => {
+  await withMockedBookMethod('find', async () => [book], async () => withMockedOrderMethod('create', async (data) => {
     assert.match(data.orderCode, /^[A-Z0-9]+$/);
     assert.deepEqual(data, {
       user: 'user-1',
@@ -162,6 +198,8 @@ test('createOrder saves the authenticated user, cart items, address, and total',
       totalAmount: 240000,
       paymentMethod: 'cod',
       paymentStatus: 'unpaid',
+      stockDeducted: true,
+      stockRestored: false,
     });
 
     return createdOrder;
@@ -169,19 +207,24 @@ test('createOrder saves the authenticated user, cart items, address, and total',
     const res = await callController(orderController.createOrder, {
       user: { _id: 'user-1' },
       body: { items: cartItems, shippingAddress },
+      app: { get: () => ({ emit: (...args) => emittedEvents.push(args) }) },
     });
 
     assert.equal(res.statusCode, 201);
+    assert.equal(book.stock, 8);
+    assert.equal(book.sold, 3);
+    assert.deepEqual(emittedEvents.map(([event]) => event), ['admin:new-order', 'books:stock-updated']);
     assert.deepEqual(res.payload, {
       success: true,
       message: 'Order created successfully',
       data: createdOrder,
     });
-  });
+  }));
 });
 
 test('createOrder saves bank transfer orders as unpaid', async () => {
   const orderController = loadOrderController();
+  const book = createMockBook();
   const createdOrder = {
     _id: 'order-bank-1',
     user: 'user-1',
@@ -193,18 +236,12 @@ test('createOrder saves bank transfer orders as unpaid', async () => {
     paymentStatus: 'unpaid',
   };
 
-  await withMockedOrderMethod('create', async (data) => {
+  await withMockedBookMethod('find', async () => [book], async () => withMockedOrderMethod('create', async (data) => {
     assert.match(data.orderCode, /^[A-Z0-9]+$/);
-    assert.deepEqual(data, {
-      user: 'user-1',
-      items: cartItems,
-      shippingAddress,
-      orderCode: data.orderCode,
-      totalAmount: 240000,
-      paymentMethod: 'bank_transfer',
-      paymentStatus: 'unpaid',
-    });
-
+    assert.equal(data.paymentMethod, 'bank_transfer');
+    assert.equal(data.paymentStatus, 'unpaid');
+    assert.equal(data.stockDeducted, true);
+    assert.equal(data.stockRestored, false);
     return createdOrder;
   }, async () => {
     const res = await callController(orderController.createOrder, {
@@ -213,8 +250,33 @@ test('createOrder saves bank transfer orders as unpaid', async () => {
     });
 
     assert.equal(res.statusCode, 201);
+    assert.equal(book.stock, 8);
+    assert.equal(book.sold, 3);
     assert.deepEqual(res.payload.data, createdOrder);
-  });
+  }));
+});
+
+
+test('createOrder returns 400 when stock is insufficient without deducting stock', async () => {
+  const orderController = loadOrderController();
+  const book = createMockBook({ stock: 1, sold: 4 });
+
+  await withMockedBookMethod('find', async () => [book], async () => withMockedOrderMethod('create', async () => {
+    throw new Error('Order.create should not be called');
+  }, async () => {
+    const res = await callController(orderController.createOrder, {
+      user: { _id: 'user-1' },
+      body: { items: cartItems, shippingAddress },
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(res.payload, {
+      success: false,
+      message: 'Sản phẩm Clean Code chỉ còn 1 cuốn',
+    });
+    assert.equal(book.stock, 1);
+    assert.equal(book.sold, 4);
+  }));
 });
 
 test('createOrder returns 400 for invalid payment method', async () => {
@@ -321,12 +383,17 @@ test('cancelOrder cancels a pending order that belongs to the authenticated user
     status: 'pending',
     cancelledAt: null,
     cancelReason: '',
+    stockDeducted: true,
+    stockRestored: false,
+    items: cartItems,
     async save() {
       return this;
     },
   };
 
-  await withMockedOrderMethod('findOne', async (query) => {
+  const book = createMockBook({ stock: 8, sold: 3 });
+
+  await withMockedBookMethod('find', async () => [book], async () => withMockedOrderMethod('findOne', async (query) => {
     assert.deepEqual(query, {
       _id: 'order-1',
       user: 'user-1',
@@ -344,6 +411,9 @@ test('cancelOrder cancels a pending order that belongs to the authenticated user
 
     assert.equal(order.status, 'cancelled');
     assert.equal(order.cancelReason, 'Dat nham sach');
+    assert.equal(order.stockRestored, true);
+    assert.equal(book.stock, 10);
+    assert.equal(book.sold, 1);
     assert.equal(typeof order.cancelledAt, 'number');
     assert.ok(order.cancelledAt >= beforeCancel);
     assert.ok(order.cancelledAt <= afterCancel);
@@ -353,7 +423,7 @@ test('cancelOrder cancels a pending order that belongs to the authenticated user
       message: 'Đã hủy đơn hàng',
       data: order,
     });
-  });
+  }));
 });
 
 test('cancelOrder does not cancel shipped orders', async () => {
@@ -389,3 +459,5 @@ test('cancelOrder does not cancel shipped orders', async () => {
     });
   });
 });
+
+

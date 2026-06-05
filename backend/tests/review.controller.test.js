@@ -589,25 +589,27 @@ test('createBookReview emits an admin notification when review is created', asyn
       },
     });
 
-    const expectedPayload = {
-      type: 'review',
-      message: 'Có đánh giá mới',
-      bookTitle: 'Sach test',
-      userName: 'Nguyen Van A',
-      rating: 5,
-      comment: 'Sach rat hay',
-      createdAt: createdAt.toISOString(),
-      orderId: '507f1f77bcf86cd799439012',
-    };
-
     assert.equal(res.statusCode, 201);
-    assert.deepEqual(emittedEvents, [
-      {
-        eventName: 'admin:new-review',
-        payload: expectedPayload,
-      },
-    ]);
-    assert.deepEqual(logCalls, [['[review] emit admin:new-review', expectedPayload]]);
+    assert.equal(emittedEvents.length, 1);
+    assert.equal(emittedEvents[0].eventName, 'admin:new-review');
+    assert.equal(emittedEvents[0].payload.type, 'review');
+    assert.equal(emittedEvents[0].payload.title, 'Có đánh giá mới');
+    assert.equal(emittedEvents[0].payload.review._id, 'rev-new');
+    assert.deepEqual(emittedEvents[0].payload.review.user, {
+      name: 'Nguyen Van A',
+      email: '',
+    });
+    assert.deepEqual(emittedEvents[0].payload.review.book, {
+      title: 'Sach test',
+      coverImage: '',
+    });
+    assert.deepEqual(emittedEvents[0].payload.review.order, {
+      orderCode: '',
+    });
+    assert.equal(emittedEvents[0].payload.review.rating, 5);
+    assert.equal(emittedEvents[0].payload.review.comment, 'Sach rat hay');
+    assert.equal(emittedEvents[0].payload.createdAt, createdAt.toISOString());
+    assert.deepEqual(logCalls, [['[socket emit] admin:new-review', 'rev-new']]);
     console.log = originalLog;
   } finally {
     console.log = originalLog;

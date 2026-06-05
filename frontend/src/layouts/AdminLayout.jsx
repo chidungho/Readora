@@ -4,12 +4,13 @@ import { getProfile } from "../services/api";
 import { socket } from "../services/socket";
 
 const adminNavItems = [
-  { label: "Dashboard", path: "/admin", end: true },
-  { label: "Books", path: "/admin/books" },
-  { label: "Orders", path: "/admin/orders" },
+  { label: "Tổng quan", path: "/admin", end: true },
+  { label: "Sách", path: "/admin/books" },
+  { label: "Đơn hàng", path: "/admin/orders" },
+  { label: "Đánh giá", path: "/admin/reviews" },
 ];
 
-const notificationStorageKey = "readora_admin_notifications";
+const notificationStorageKey = "readora_admin_notifications_v2";
 const maxStoredNotifications = 20;
 
 const readStoredNotifications = () => {
@@ -40,13 +41,15 @@ const normalizeNotification = (payload = {}) => {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     type: payload.type || "review",
+    title: payload.title || "",
     message: payload.message || "Có đánh giá mới",
-    bookTitle: payload.bookTitle || "Sách chưa rõ",
-    userName: payload.userName || "Người dùng",
-    rating: Number(payload.rating) || 0,
-    comment: payload.comment || "",
+    detail: payload.detail || "",
+    bookTitle: payload.bookTitle || payload.review?.book?.title || "Sách chưa rõ",
+    userName: payload.userName || payload.review?.user?.name || payload.order?.user?.name || "Người dùng",
+    rating: Number(payload.rating || payload.review?.rating) || 0,
+    comment: payload.comment || payload.review?.comment || "",
     orderId: payload.orderId || "",
-    orderCode: payload.orderCode || "",
+    orderCode: payload.orderCode || payload.order?.orderCode || "",
     createdAt: payload.createdAt || receivedAt,
     receivedAt,
   };
@@ -116,9 +119,7 @@ function AdminLayout() {
       return undefined;
     }
 
-    const handleNewReview = (payload) => {
-      console.log("received admin:new-review", payload);
-
+    const pushNotification = (payload) => {
       const nextNotification = normalizeNotification(payload);
 
       setNotifications((currentNotifications) => {
@@ -134,12 +135,23 @@ function AdminLayout() {
       setToastNotification(nextNotification);
     };
 
+    const handleNewOrder = (payload) => {
+      console.log("[admin socket] received admin:new-order", payload);
+      pushNotification(payload);
+    };
+
+    const handleNewReview = (payload) => {
+      console.log("[admin socket] received admin:new-review", payload);
+      pushNotification(payload);
+    };
+
     socket.connect();
+    socket.on("admin:new-order", handleNewOrder);
     socket.on("admin:new-review", handleNewReview);
 
     return () => {
+      socket.off("admin:new-order", handleNewOrder);
       socket.off("admin:new-review", handleNewReview);
-      socket.disconnect();
     };
   }, [user]);
 
@@ -166,7 +178,7 @@ function AdminLayout() {
   if (isChecking) {
     return (
       <div className="admin-shell admin-shell--checking">
-        <p className="state-message">Dang kiem tra quyen admin...</p>
+        <p className="state-message">Đang kiểm tra quyền admin...</p>
       </div>
     );
   }
@@ -185,7 +197,7 @@ function AdminLayout() {
           <span>Readora Admin</span>
         </Link>
 
-        <nav className="admin-nav" aria-label="Admin navigation">
+        <nav className="admin-nav" aria-label="Điều hướng quản trị">
           {adminNavItems.map((item) => (
             <NavLink
               key={item.path}
@@ -201,14 +213,14 @@ function AdminLayout() {
         </nav>
 
         <Link className="admin-store-link" to="/">
-          Ve cua hang
+          Về cửa hàng
         </Link>
       </aside>
 
       <main className="admin-main">
         <div className="admin-topbar">
           <div>
-            <p className="eyebrow">Admin</p>
+            <p className="eyebrow">QUẢN TRỊ</p>
             <strong>{user.name || user.email}</strong>
           </div>
           <div className="admin-topbar__actions">
