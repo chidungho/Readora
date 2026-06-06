@@ -26,6 +26,11 @@ const expectedProcessableOrderQuery = {
   ],
 };
 
+const expectedPaidRevenueOrderQuery = {
+  paymentStatus: 'paid',
+  status: { $ne: 'cancelled' },
+};
+
 const callController = async (handler, req = {}) => {
   const res = mockResponse();
   let nextError;
@@ -385,7 +390,26 @@ test('getAdminStats returns dashboard analytics summary', async () => {
     return 0;
   };
   Order.aggregate = async (pipeline) => {
-    assert.deepEqual(pipeline[0]['$match']['$or'], expectedProcessableOrderQuery['$or']);
+    const match = pipeline[0]['$match'];
+
+    if (aggregateResults.length === 5) {
+      assert.deepEqual(match, { ...expectedPaidRevenueOrderQuery, status: 'delivered' });
+    } else if (aggregateResults.length === 4) {
+      assert.deepEqual(match, expectedPaidRevenueOrderQuery);
+    } else if (aggregateResults.length === 3) {
+      assert.equal(match.paymentStatus, 'paid');
+      assert.deepEqual(match.status, { $ne: 'cancelled' });
+      assert.ok(match.createdAt?.$gte instanceof Date);
+      assert.ok(match.createdAt?.$lt instanceof Date);
+    } else if (aggregateResults.length === 2) {
+      assert.deepEqual(match, expectedProcessableOrderQuery);
+    } else if (aggregateResults.length === 1) {
+      assert.equal(match.paymentStatus, 'paid');
+      assert.deepEqual(match.status, { $ne: 'cancelled' });
+      assert.ok(match.createdAt?.$gte instanceof Date);
+      assert.ok(match.createdAt?.$lt instanceof Date);
+    }
+
     return aggregateResults.shift();
   };
   Order.find = (query) => {

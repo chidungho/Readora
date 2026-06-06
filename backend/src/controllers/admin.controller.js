@@ -19,6 +19,11 @@ const processableOrderQuery = {
   ],
 };
 
+const paidRevenueOrderQuery = {
+  paymentStatus: 'paid',
+  status: { $ne: 'cancelled' },
+};
+
 const orderStatusLabels = {
   pending: '\u0043h\u1edd x\u00e1c nh\u1eadn',
   confirmed: '\u0110\u00e3 x\u00e1c nh\u1eadn',
@@ -120,10 +125,10 @@ const getAdminStats = async (req, res, next) => {
       Order.countDocuments({ ...processableOrderQuery, status: 'pending' }),
       Order.countDocuments({ ...processableOrderQuery, status: 'delivered' }),
       Order.countDocuments({ ...processableOrderQuery, status: 'cancelled' }),
-      Order.aggregate([{ $match: { ...processableOrderQuery, status: 'delivered' } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
-      Order.aggregate([{ $match: { ...processableOrderQuery, paymentStatus: 'paid' } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.aggregate([{ $match: { ...paidRevenueOrderQuery, status: 'delivered' } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.aggregate([{ $match: paidRevenueOrderQuery }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
       Order.countDocuments({ ...processableOrderQuery, createdAt: { $gte: todayStart, $lt: tomorrowStart } }),
-      Order.aggregate([{ $match: { ...processableOrderQuery, createdAt: { $gte: todayStart, $lt: tomorrowStart } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.aggregate([{ $match: { ...paidRevenueOrderQuery, createdAt: { $gte: todayStart, $lt: tomorrowStart } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
       Order.find(processableOrderQuery).populate('user', 'name email').sort({ createdAt: -1 }).limit(5),
       Book.find({ stock: { $lte: 10 } }).sort({ stock: 1, title: 1 }).limit(20),
       Book.find({}).sort({ sold: -1, soldCount: -1 }).limit(5),
@@ -135,7 +140,7 @@ const getAdminStats = async (req, res, next) => {
         { $limit: 5 },
       ]),
       Order.aggregate([
-        { $match: { ...processableOrderQuery, status: 'delivered', createdAt: { $gte: sevenDaysStart, $lt: tomorrowStart } } },
+        { $match: { ...paidRevenueOrderQuery, createdAt: { $gte: sevenDaysStart, $lt: tomorrowStart } } },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Ho_Chi_Minh' } }, revenue: { $sum: '$totalAmount' }, orders: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
