@@ -1468,6 +1468,194 @@
   align-items: center;
 }
 
+.payment-methods {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.payment-methods legend {
+  margin-bottom: 12px;
+  color: var(--color-text);
+  font-weight: 900;
+}
+
+.payment-methods__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.payment-method-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 128px;
+  border: 1px solid color-mix(in srgb, var(--color-border) 84%, transparent);
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--color-surface-strong), var(--color-surface));
+  padding: 16px;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.payment-method-card:hover,
+.payment-method-card:has(.payment-method-card__input:focus-visible) {
+  border-color: color-mix(in srgb, var(--color-primary) 52%, var(--color-border));
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--color-primary) 13%, transparent);
+  transform: translateY(-2px);
+}
+
+.payment-method-card.is-selected {
+  border-color: var(--color-primary);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--color-primary) 17%, transparent), transparent 42%),
+    color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-strong));
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.payment-method-card__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.payment-method-card__check {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 2px solid color-mix(in srgb, var(--color-primary) 34%, var(--color-border));
+  border-radius: 999px;
+  background: var(--color-surface-strong);
+}
+
+.payment-method-card__check::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: inherit;
+  background: var(--color-primary);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.payment-method-card.is-selected .payment-method-card__check::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.payment-method-card__content {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+}
+
+.payment-method-card__eyebrow {
+  color: var(--color-primary-dark);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.payment-method-card__content strong {
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: 1.18rem;
+  line-height: 1.12;
+}
+
+.payment-method-card__content small {
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.bank-transfer-box {
+  display: grid;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border));
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 46%),
+    var(--color-surface-strong);
+  padding: 18px;
+}
+
+.bank-transfer-box--sample {
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.bank-transfer-box__header {
+  display: grid;
+  gap: 6px;
+}
+
+.bank-transfer-box__header .eyebrow {
+  margin: 0;
+}
+
+.bank-transfer-box__header strong {
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: 1.28rem;
+  line-height: 1.1;
+}
+
+.bank-transfer-box__header span {
+  color: var(--color-muted);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.bank-transfer-box dl,
+.payment-confirmation__details {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.bank-transfer-box dl > div,
+.payment-confirmation__details > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 72%, transparent);
+  padding-top: 10px;
+}
+
+.bank-transfer-box dt,
+.payment-confirmation__details dt {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.bank-transfer-box dd,
+.payment-confirmation__details dd {
+  margin: 0;
+  color: var(--color-text);
+  font-weight: 900;
+  text-align: right;
+}
+
 .checkout-summary__items {
   display: grid;
   gap: 12px;
@@ -2689,6 +2877,7 @@ body[data-theme="dark"] .admin-shell {
   .category-strip,
   .books-toolbar,
   .checkout-form__grid,
+  .payment-methods__grid,
   .checkout-actions {
     grid-template-columns: 1fr;
   }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import {
   SEPAY_ACCOUNT,
@@ -28,6 +28,7 @@ const getCartTotal = (items) =>
 
 function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [cartItems] = useState(getCart);
   const [shippingAddress, setShippingAddress] = useState({
     fullName: "",
@@ -38,8 +39,8 @@ function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [createdOrder, setCreatedOrder] = useState(null);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [createdOrder, setCreatedOrder] = useState(() => location.state?.paymentOrder || null);
+  const [statusMessage, setStatusMessage] = useState(location.state?.paymentMessage || "");
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const cartTotal = useMemo(() => getCartTotal(cartItems), [cartItems]);
@@ -135,7 +136,7 @@ function CheckoutPage() {
           <div className="container">
             <div className="empty-state empty-state--centered payment-confirmation">
               <p className="eyebrow">Thanh toán chuyển khoản</p>
-              <h1>Quét QR SePay để thanh toán</h1>
+              <h1>Quét QR để thanh toán</h1>
               <p>Đơn hàng #{createdOrder.orderCode} đang chờ thanh toán.</p>
 
               <img className="payment-confirmation__qr" src={qrUrl} alt="QR thanh toán SePay" />
@@ -284,37 +285,53 @@ function CheckoutPage() {
 
               <fieldset className="payment-methods">
                 <legend>Phương thức thanh toán</legend>
-                <label className="payment-methods__option">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="cod"
-                    checked={paymentMethod === "cod"}
-                    onChange={(event) => setPaymentMethod(event.target.value)}
-                  />
-                  <span>
-                    <strong>COD</strong>
-                    <small>Thanh toán khi nhận hàng.</small>
-                  </span>
-                </label>
-                <label className="payment-methods__option">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="bank_transfer"
-                    checked={paymentMethod === "bank_transfer"}
-                    onChange={(event) => setPaymentMethod(event.target.value)}
-                  />
-                  <span>
-                    <strong>Chuyển khoản ngân hàng</strong>
-                    <small>Quét QR SePay sau khi đặt hàng, không cần nhập API key.</small>
-                  </span>
-                </label>
+                <div className="payment-methods__grid">
+                  <label
+                    className={`payment-method-card${paymentMethod === "cod" ? " is-selected" : ""}`}
+                  >
+                    <input
+                      className="payment-method-card__input"
+                      type="radio"
+                      name="paymentMethod"
+                      value="cod"
+                      checked={paymentMethod === "cod"}
+                      onChange={(event) => setPaymentMethod(event.target.value)}
+                    />
+                    <span className="payment-method-card__check" aria-hidden="true" />
+                    <span className="payment-method-card__content">
+                      <span className="payment-method-card__eyebrow">COD</span>
+                      <strong>Thanh toán khi nhận hàng</strong>
+                      <small>Trả tiền mặt sau khi nhận sách.</small>
+                    </span>
+                  </label>
+                  <label
+                    className={`payment-method-card${paymentMethod === "bank_transfer" ? " is-selected" : ""}`}
+                  >
+                    <input
+                      className="payment-method-card__input"
+                      type="radio"
+                      name="paymentMethod"
+                      value="bank_transfer"
+                      checked={paymentMethod === "bank_transfer"}
+                      onChange={(event) => setPaymentMethod(event.target.value)}
+                    />
+                    <span className="payment-method-card__check" aria-hidden="true" />
+                    <span className="payment-method-card__content">
+                      <span className="payment-method-card__eyebrow">SePay QR</span>
+                      <strong>Chuyển khoản ngân hàng</strong>
+                      <small>Quét QR để hoàn tất thanh toán.</small>
+                    </span>
+                  </label>
+                </div>
               </fieldset>
 
               {paymentMethod === "bank_transfer" && (
-                <div className="bank-transfer-box" aria-live="polite">
-                  <p className="eyebrow">Thông tin chuyển khoản mẫu</p>
+                <div className="bank-transfer-box bank-transfer-box--sample" aria-live="polite">
+                  <div className="bank-transfer-box__header">
+                    <p className="eyebrow">Thông tin chuyển khoản mẫu</p>
+                    <strong>Thanh toán qua ngân hàng</strong>
+                    <span>Lưu lại thông tin này, nội dung chuyển khoản sẽ được tạo sau khi đặt hàng.</span>
+                  </div>
                   <dl>
                     <div>
                       <dt>Ngân hàng</dt>

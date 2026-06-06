@@ -302,7 +302,7 @@ function BooksPage() {
             <p className="eyebrow">Thư viện Readora</p>
             <h1>Danh sách sách</h1>
             <span>
-              Tìm, lọc và sắp xếp sách từ Readora API theo tên sách, tác giả,
+              Tìm, lọc và sắp xếp sách từ Readora theo tên sách, tác giả,
               danh mục, đánh giá và giá.
             </span>
           </div>

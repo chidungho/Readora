@@ -25,6 +25,11 @@ const paymentStatusLabels = {
   paid: "Đã thanh toán",
 };
 
+const isUnpaidBankTransferOrder = (order) =>
+  order?.status !== "cancelled" &&
+  order?.paymentMethod === "bank_transfer" &&
+  order?.paymentStatus === "unpaid";
+
 const canCancelOrder = (status) => cancellableStatuses.includes(status);
 
 const formatCurrency = (value) => {
@@ -236,7 +241,11 @@ function OrdersPage() {
                         {statusLabels[order.status] || order.status}
                       </strong>
                       <span>{paymentMethodLabels[order.paymentMethod] || order.paymentMethod}</span>
-                      <span>{paymentStatusLabels[order.paymentStatus] || "Chưa thanh toán"}</span>
+                      <span>
+                        {isUnpaidBankTransferOrder(order)
+                          ? "Đang chờ thanh toán"
+                          : paymentStatusLabels[order.paymentStatus] || "Chưa thanh toán"}
+                      </span>
                     </div>
                   </div>
 
@@ -282,6 +291,18 @@ function OrdersPage() {
                     <div className="order-card__total">
                       <span>Tổng tiền</span>
                       <strong>{formatCurrency(order.totalAmount)}</strong>
+                      {isUnpaidBankTransferOrder(order) && (
+                        <Link
+                          className="button button--primary order-card__cancel"
+                          to="/checkout"
+                          state={{
+                            paymentOrder: order,
+                            paymentMessage: "Vui lòng chuyển khoản đúng số tiền và nội dung bên dưới.",
+                          }}
+                        >
+                          Thanh toán ngay
+                        </Link>
+                      )}
                       {canCancelOrder(order.status) && (
                         <button
                           className="button button--danger order-card__cancel"

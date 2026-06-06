@@ -21,7 +21,7 @@ const processableOrderQuery = {
 
 const paidRevenueOrderQuery = {
   paymentStatus: 'paid',
-  status: { $ne: 'cancelled' },
+  status: 'delivered',
 };
 
 const orderStatusLabels = {
@@ -249,7 +249,7 @@ const getAdminOrders = async (req, res, next) => {
 
 const getAdminOrderById = async (req, res, next) => {
   try {
-    const order = await Order.findById(req.params.id).populate('user', 'name email');
+    const order = await Order.findOne({ _id: req.params.id, ...processableOrderQuery }).populate('user', 'name email');
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
