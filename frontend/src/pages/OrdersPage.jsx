@@ -84,7 +84,6 @@ function OrdersPage() {
     }
 
     const handleOrderUpdated = (payload) => {
-      console.log("[user orders] received user:order-updated", payload);
 
       const updatedOrder = payload.order || payload;
 

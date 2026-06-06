@@ -74,7 +74,6 @@ function AdminOrdersPage() {
 
   useEffect(() => {
     const handleNewOrder = (payload = {}) => {
-      console.log("[admin orders] received admin:new-order", payload);
       const newOrder = payload.order || payload;
       if (!newOrder?._id) return;
 

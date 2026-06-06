@@ -1,4 +1,5 @@
 const Order = require('../models/order.model');
+const { emitNewOrder } = require('./order.controller');
 
 const orderCodePattern = /READORA[-\s]?([A-Z0-9]+)/i;
 const contentFields = ['content', 'description', 'transaction_content', 'transferContent'];
@@ -85,6 +86,14 @@ const handleSepayWebhook = async (req, res, next) => {
     order.paymentNote = content;
 
     await order.save();
+
+    if (order.paymentMethod === 'bank_transfer') {
+      if (typeof order.populate === 'function') {
+        await order.populate('user', 'name email');
+      }
+
+      emitNewOrder(req, order);
+    }
 
     const io = req.app.get('io');
     if (io) {

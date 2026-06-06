@@ -1,4 +1,5 @@
 const Order = require('../models/order.model');
+const Book = require('../models/book.model');
 const Review = require('../models/review.model');
 const { emitStockUpdated, restoreOrderStock } = require('./order.controller');
 
@@ -10,6 +11,13 @@ const allowedOrderStatuses = [
   'cancelled',
 ];
 const allowedPaymentStatuses = ['unpaid', 'paid'];
+
+const processableOrderQuery = {
+  $or: [
+    { paymentMethod: 'cod' },
+    { paymentMethod: 'bank_transfer', paymentStatus: 'paid' },
+  ],
+};
 
 const orderStatusLabels = {
   pending: '\u0043h\u1edd x\u00e1c nh\u1eadn',
@@ -54,6 +62,150 @@ const emitUserOrderUpdated = (req, order) => {
   console.log('[socket emit] user:order-updated', order.orderCode, order.status);
 };
 
+const startOfDay = (date) => {
+  const nextDate = new Date(date);
+  nextDate.setHours(0, 0, 0, 0);
+  return nextDate;
+};
+
+const addDays = (date, days) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+};
+
+const formatDayKey = (date) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(date);
+
+const normalizeTopSellingBook = (book) => ({
+  _id: book._id,
+  title: book.title,
+  author: book.author,
+  coverImage: book.coverImage || book.image || '',
+  stock: Number(book.stock) || 0,
+  sold: Number(book.sold ?? book.soldCount ?? 0) || 0,
+  soldCount: Number(book.soldCount ?? book.sold ?? 0) || 0,
+  totalSold: Number(book.totalSold ?? book.soldCount ?? book.sold ?? 0) || 0,
+});
+
+const getAdminStats = async (req, res, next) => {
+  try {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const tomorrowStart = addDays(todayStart, 1);
+    const sevenDaysStart = addDays(todayStart, -6);
+
+    const [
+      totalBooks,
+      totalOrders,
+      pendingOrders,
+      deliveredOrders,
+      cancelledOrders,
+      deliveredRevenueResult,
+      paidRevenueResult,
+      todayOrders,
+      todayRevenueResult,
+      recentOrders,
+      lowStockBooks,
+      soldBooks,
+      orderTopSellingBooks,
+      revenueByDayRows,
+    ] = await Promise.all([
+      Book.countDocuments({}),
+      Order.countDocuments(processableOrderQuery),
+      Order.countDocuments({ ...processableOrderQuery, status: 'pending' }),
+      Order.countDocuments({ ...processableOrderQuery, status: 'delivered' }),
+      Order.countDocuments({ ...processableOrderQuery, status: 'cancelled' }),
+      Order.aggregate([{ $match: { ...processableOrderQuery, status: 'delivered' } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.aggregate([{ $match: { ...processableOrderQuery, paymentStatus: 'paid' } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.countDocuments({ ...processableOrderQuery, createdAt: { $gte: todayStart, $lt: tomorrowStart } }),
+      Order.aggregate([{ $match: { ...processableOrderQuery, createdAt: { $gte: todayStart, $lt: tomorrowStart } } }, { $group: { _id: null, total: { $sum: '$totalAmount' } } }]),
+      Order.find(processableOrderQuery).populate('user', 'name email').sort({ createdAt: -1 }).limit(5),
+      Book.find({ stock: { $lte: 10 } }).sort({ stock: 1, title: 1 }).limit(20),
+      Book.find({}).sort({ sold: -1, soldCount: -1 }).limit(5),
+      Order.aggregate([
+        { $match: processableOrderQuery },
+        { $unwind: '$items' },
+        { $group: { _id: '$items.book', title: { $first: '$items.title' }, coverImage: { $first: '$items.coverImage' }, totalSold: { $sum: '$items.quantity' }, totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } } } },
+        { $sort: { totalSold: -1 } },
+        { $limit: 5 },
+      ]),
+      Order.aggregate([
+        { $match: { ...processableOrderQuery, status: 'delivered', createdAt: { $gte: sevenDaysStart, $lt: tomorrowStart } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Ho_Chi_Minh' } }, revenue: { $sum: '$totalAmount' }, orders: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    const orderTopById = new Map(orderTopSellingBooks.map((book) => [String(book._id), book]));
+    const topSellingBooks = soldBooks.map((book) => {
+      const orderStats = orderTopById.get(String(book._id));
+      const bookObject = typeof book.toObject === 'function' ? book.toObject() : book;
+      return normalizeTopSellingBook({ ...bookObject, totalSold: orderStats?.totalSold ?? bookObject.sold });
+    });
+
+    if (topSellingBooks.length === 0) {
+      topSellingBooks.push(...orderTopSellingBooks.map(normalizeTopSellingBook));
+    }
+
+    const revenueByDayMap = new Map(revenueByDayRows.map((row) => [row._id, row]));
+    const revenueByDay = Array.from({ length: 7 }, (_, index) => {
+      const date = addDays(sevenDaysStart, index);
+      const day = formatDayKey(date);
+      const row = revenueByDayMap.get(day);
+      return { day, revenue: Number(row?.revenue || 0), orders: Number(row?.orders || 0) };
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Admin stats fetched successfully',
+      data: {
+        totalBooks,
+        totalOrders,
+        pendingOrders,
+        deliveredOrders,
+        cancelledOrders,
+        totalRevenueDelivered: Number(deliveredRevenueResult[0]?.total || 0),
+        totalRevenuePaid: Number(paidRevenueResult[0]?.total || 0),
+        todayOrders,
+        todayRevenue: Number(todayRevenueResult[0]?.total || 0),
+        recentOrders,
+        topSellingBooks: topSellingBooks.slice(0, 5),
+        lowStockBooks,
+        revenueByDay,
+      },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const buildAdminOrderUpdatedPayload = (order) => ({
+  type: 'order-update',
+  title: 'Đơn hàng đã cập nhật',
+  message: `Đơn #${order.orderCode} đã được cập nhật.`,
+  order,
+  orderId: order._id,
+  orderCode: order.orderCode,
+  status: order.status,
+  paymentStatus: order.paymentStatus,
+  updatedAt: order.updatedAt || new Date(),
+});
+
+const emitAdminOrderUpdated = (req, order) => {
+  const io = req.app ? req.app.get('io') : null;
+
+  if (!io) {
+    return;
+  }
+
+  io.emit('admin:order-updated', buildAdminOrderUpdatedPayload(order));
+};
+
 const getAdminReviews = async (req, res, next) => {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
@@ -76,7 +228,7 @@ const getAdminReviews = async (req, res, next) => {
 
 const getAdminOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find({})
+    const orders = await Order.find(processableOrderQuery)
       .populate('user', 'name email')
       .sort({ createdAt: -1 });
 
@@ -178,5 +330,6 @@ module.exports = {
   getAdminOrderById,
   getAdminOrders,
   getAdminReviews,
+  getAdminStats,
   updateAdminOrderStatus,
 };

@@ -40,7 +40,7 @@ const StarInput = ({ value, onChange }) => {
   const [hovered, setHovered] = useState(0);
 
   return (
-    <div className="star-input" role="radiogroup" aria-label="Chon so sao">
+    <div className="star-input" role="radiogroup" aria-label="Chọn số sao">
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
@@ -115,7 +115,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (rating === 0) {
-      setSubmitError("Vui long chon so sao.");
+      setSubmitError("Vui lòng chọn số sao.");
       return;
     }
     setSubmitting(true);
@@ -139,7 +139,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
   if (loading) {
     return (
       <section className="reviews-section">
-        <h2>Danh gia</h2>
+        <h2>Đánh giá</h2>
         <div className="skeleton skeleton--paragraph" />
       </section>
     );
@@ -148,7 +148,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
   return (
     <section className="reviews-section">
       <h2>
-        Danh gia ({reviews.length})
+        Đánh giá ({reviews.length})
       </h2>
 
       {error && <p className="error-message">{error}</p>}
@@ -157,13 +157,13 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
         <>
           {canReview ? (
             <form className="review-form" onSubmit={handleSubmit}>
-              <h3>Viet danh gia</h3>
+              <h3>Viết đánh giá</h3>
               <div className="review-form__field">
-                <label>Chon so sao</label>
+                <label>Chọn số sao</label>
                 <StarInput value={rating} onChange={setRating} />
               </div>
               <div className="review-form__field">
-                <label htmlFor="review-comment">Nhan xet (khong bat buoc)</label>
+                <label htmlFor="review-comment">Nhận xét (không bắt buộc)</label>
                 <textarea
                   id="review-comment"
                   className="review-form__textarea"
@@ -179,13 +179,13 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
                 className="button button--primary"
                 disabled={submitting || rating === 0}
               >
-                {submitting ? "Dang gui..." : "Gui danh gia"}
+                {submitting ? "Đang gửi..." : "Gửi đánh giá"}
               </button>
             </form>
           ) : (
             !existingReview && (
               <p className="review-condition-notice">
-                Ban co the danh gia sau khi don hang duoc giao thanh cong.
+                Bạn có thể đánh giá sau khi đơn hàng được giao thành công.
               </p>
             )
           )}
@@ -194,7 +194,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
 
       <div className="reviews-list">
         {reviews.length === 0 ? (
-          <p className="reviews-list__empty">Chua co danh gia nao.</p>
+          <p className="reviews-list__empty">Chưa có đánh giá nào.</p>
         ) : (
           reviews.map((review) => (
             <div key={review._id} className="review-card">
@@ -204,7 +204,7 @@ function ReviewSection({ bookId, onReviewSubmitted }) {
                 </div>
                 <div className="review-card__info">
                   <strong className="review-card__name">
-                    {review.user?.name || "Nguoi dung"}
+                    {review.user?.name || "Người dùng"}
                   </strong>
                   <div className="review-card__stars">
                     {renderStars(review.rating)}

@@ -21,3 +21,4 @@ frontend/dist/
 *.log
 backend/uploads/
 uploads/
+!**/.env.example

@@ -136,12 +136,10 @@ function AdminLayout() {
     };
 
     const handleNewOrder = (payload) => {
-      console.log("[admin socket] received admin:new-order", payload);
       pushNotification(payload);
     };
 
     const handleNewReview = (payload) => {
-      console.log("[admin socket] received admin:new-review", payload);
       pushNotification(payload);
     };
 

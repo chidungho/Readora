@@ -10,6 +10,7 @@ const {
   getAdminOrderById,
   getAdminOrders,
   getAdminReviews,
+  getAdminStats,
   updateAdminOrderStatus,
 } = require('../controllers/admin.controller');
 const { uploadBookCover } = require('../controllers/upload.controller');
@@ -25,6 +26,8 @@ router.put('/books/:id', updateBook);
 router.delete('/books/:id', deleteBook);
 
 router.post('/uploads/book-cover', uploadBookCover);
+
+router.get('/stats', getAdminStats);
 
 router.get('/orders', getAdminOrders);
 router.get('/orders/:id', getAdminOrderById);

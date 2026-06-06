@@ -44,7 +44,6 @@ function AdminReviewsPage() {
 
   useEffect(() => {
     const handleNewReview = (payload = {}) => {
-      console.log("[admin reviews] received admin:new-review", payload);
       const nextReview = normalizeReview(payload.review || payload);
       if (!nextReview._id) return;
       setReviews((currentReviews) => currentReviews.some((review) => review._id === nextReview._id) ? currentReviews : [nextReview, ...currentReviews]);

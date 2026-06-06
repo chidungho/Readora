@@ -7,17 +7,6 @@ export const socket = io(socketURL, {
   transports: ["websocket", "polling"],
 });
 
-socket.on("connect", () => {
-  console.log("socket connected", socket.id);
-});
-
-socket.on("connect_error", (error) => {
-  console.log("socket connect_error", error.message);
-});
-
-socket.on("disconnect", (reason) => {
-  console.log("socket disconnected", reason);
-});
 
 export const connectAdminSocket = () => {
   if (!socket.connected) {

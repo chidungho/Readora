@@ -63,6 +63,7 @@ const createOrder = (overrides = {}) => ({
   orderCode: 'ABC123',
   totalAmount: 150000,
   paymentStatus: 'unpaid',
+  paymentMethod: 'bank_transfer',
   saved: false,
   async save() {
     this.saved = true;
@@ -90,7 +91,7 @@ test('SePay webhook with matching orderCode and enough amount marks order paid',
   assert.equal(order.paymentNote, 'Thanh toan READORA-ABC123');
   assert.ok(order.paidAt instanceof Date);
   assert.equal(order.saved, true);
-  assert.deepEqual(emittedEvents[0].eventName, 'admin:payment-paid');
+  assert.deepEqual(emittedEvents.map(({ eventName }) => eventName), ['admin:new-order', 'admin:payment-paid']);
 });
 
 test('SePay duplicate webhook returns 200 idempotently', async () => {

@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const User = require('../models/user.model');
+const googleAuthService = require('../services/googleAuth.service');
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -110,6 +111,58 @@ const login = async (req, res, next) => {
   }
 };
 
+
+const googleLogin = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Google ID token is required',
+      });
+    }
+
+    const googleUser = await googleAuthService.verifyGoogleIdToken(idToken);
+    const normalizedEmail = googleUser.email.trim().toLowerCase();
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      const randomPassword = await bcrypt.hash(`google:${normalizedEmail}:${Date.now()}`, 10);
+
+      user = await User.create({
+        name: googleUser.name.trim() || normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        password: randomPassword,
+        avatar: googleUser.avatar,
+      });
+    }
+
+    const token = createToken(user._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successfully',
+      data: {
+        user: removePassword(user),
+        token,
+      },
+    });
+  } catch (error) {
+    if (
+      error.message === 'GOOGLE_CLIENT_ID is required' ||
+      error.message === 'Google account email is not verified'
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return next(error);
+  }
+};
+
 const getProfile = async (req, res) => res.status(200).json({
   success: true,
   message: 'Profile fetched successfully',
@@ -121,5 +174,6 @@ const getProfile = async (req, res) => res.status(200).json({
 module.exports = {
   register,
   login,
+  googleLogin,
   getProfile,
 };

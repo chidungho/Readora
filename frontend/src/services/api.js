@@ -14,7 +14,7 @@ export const FALLBACK_COVER_IMAGE = `data:image/svg+xml;utf8,${encodeURIComponen
   fallbackCoverSvg,
 )}`;
 
-const DEFAULT_ERROR_MESSAGE = "KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u tá»« Readora API.";
+const DEFAULT_ERROR_MESSAGE = "Không thể tải dữ liệu từ Readora API.";
 const BOOK_QUERY_KEYS = [
   "search",
   "category",
@@ -143,17 +143,17 @@ export const normalizeBook = (book = {}) => {
           ),
         )
       : normalizeCategoryNames(book.category);
-  const category = categories[0] || normalizeCategoryName(book.category) || "ChÆ°a phÃ¢n loáº¡i";
+  const category = categories[0] || normalizeCategoryName(book.category) || "Chưa phân loại";
   const coverImage = book.coverImage || book.image || FALLBACK_COVER_IMAGE;
 
   return {
     ...book,
     _id: id,
     id,
-    title: book.title || "SÃ¡ch Ä‘ang cáº­p nháº­t",
+    title: book.title || "Sách đang cập nhật",
     author: book.author || "Readora",
     description:
-      book.description || "MÃ´ táº£ sÃ¡ch Ä‘ang Ä‘Æ°á»£c Readora cáº­p nháº­t.",
+      book.description || "Mô tả sách đang được Readora cập nhật.",
     category,
     categories,
     price: toNumber(book.price, null),
@@ -260,6 +260,8 @@ const sendAdminJson = (endpoint, method, data) =>
 export const registerUser = async (data) => postJson("/auth/register", data);
 
 export const loginUser = async (data) => postJson("/auth/login", data);
+
+export const loginWithGoogle = async (idToken) => postJson("/auth/google", { idToken });
 
 export const getProfile = async () => {
   const token = getAuthToken();
@@ -374,7 +376,6 @@ export const uploadBookCover = async (file) => {
   formData.append("cover", file);
 
   const endpoint = `${baseURL}/admin/uploads/book-cover`;
-  console.log("[cover upload] endpoint", endpoint);
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -391,6 +392,8 @@ export const uploadBookCover = async (file) => {
 
   return data;
 };
+
+export const getAdminStats = (options = {}) => requestWithAuth("/admin/stats", options);
 
 export const getAdminOrders = async (options = {}) => {
   const data = await requestWithAuth("/admin/orders", options);
@@ -432,7 +435,7 @@ export async function createBookReview(bookId, payload) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data?.message || "KhÃ´ng gá»­i Ä‘Æ°á»£c Ä‘Ã¡nh giÃ¡");
+    throw new Error(data?.message || "Không gửi được đánh giá");
   }
 
   return data;

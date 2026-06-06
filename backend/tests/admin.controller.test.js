@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const Order = require('../src/models/order.model');
@@ -18,6 +18,13 @@ const mockResponse = () => ({
     return this;
   },
 });
+
+const expectedProcessableOrderQuery = {
+  $or: [
+    { paymentMethod: 'cod' },
+    { paymentMethod: 'bank_transfer', paymentStatus: 'paid' },
+  ],
+};
 
 const callController = async (handler, req = {}) => {
   const res = mockResponse();
@@ -112,7 +119,7 @@ test('Admin controller exports order handlers', () => {
   assert.deepEqual(adminController.allowedPaymentStatuses, ['unpaid', 'paid']);
 });
 
-test('getAdminOrders returns all orders sorted newest first with user info', async () => {
+test('getAdminOrders returns only processable orders sorted newest first with user info', async () => {
   const orders = [
     {
       _id: 'order-1',
@@ -122,7 +129,7 @@ test('getAdminOrders returns all orders sorted newest first with user info', asy
   ];
 
   await withMockedOrderMethod('find', (query) => {
-    assert.deepEqual(query, {});
+    assert.deepEqual(query, expectedProcessableOrderQuery);
 
     return {
       populate(path, fields) {
@@ -345,4 +352,106 @@ test('buildUserOrderUpdatedPayload returns realtime order update shape', () => {
     paymentStatus: 'paid',
     updatedAt: '2026-06-05T00:00:00.000Z',
   });
+});
+
+test('getAdminStats returns dashboard analytics summary', async () => {
+  const recentOrders = [createOrderDoc({ _id: 'order-2', orderCode: 'ORD002', totalAmount: 120000 })];
+  const lowStockBooks = [createBookDoc({ title: 'SÃ¡ch gáº§n háº¿t', author: 'Readora', stock: 4 })];
+  const soldBooks = [createBookDoc({ title: 'SÃ¡ch bÃ¡n cháº¡y', author: 'Readora', sold: 9, stock: 12 })];
+  const originalOrderMethods = {
+    countDocuments: Order.countDocuments,
+    aggregate: Order.aggregate,
+    find: Order.find,
+  };
+  const originalBookMethods = {
+    countDocuments: Book.countDocuments,
+    find: Book.find,
+  };
+  const aggregateResults = [
+    [{ total: 500000 }],
+    [{ total: 300000 }],
+    [{ total: 90000 }],
+    [{ _id: '507f1f77bcf86cd799439011', title: 'SÃ¡ch bÃ¡n cháº¡y', totalSold: 11 }],
+    [{ _id: '2026-06-06', revenue: 500000, orders: 2 }],
+  ];
+
+  Order.countDocuments = async (query) => {
+    assert.deepEqual(query['$or'], expectedProcessableOrderQuery['$or']);
+    if (Object.keys(query).length === 1) return 8;
+    if (query.status === 'pending') return 2;
+    if (query.status === 'delivered') return 4;
+    if (query.status === 'cancelled') return 1;
+    if (query.createdAt) return 3;
+    return 0;
+  };
+  Order.aggregate = async (pipeline) => {
+    assert.deepEqual(pipeline[0]['$match']['$or'], expectedProcessableOrderQuery['$or']);
+    return aggregateResults.shift();
+  };
+  Order.find = (query) => {
+    assert.deepEqual(query, expectedProcessableOrderQuery);
+
+    return {
+    populate(path, fields) {
+      assert.equal(path, 'user');
+      assert.equal(fields, 'name email');
+      return this;
+    },
+    sort(sortQuery) {
+      assert.deepEqual(sortQuery, { createdAt: -1 });
+      return this;
+    },
+    limit(limit) {
+      assert.equal(limit, 5);
+      return Promise.resolve(recentOrders);
+    },
+  };
+  };
+  Book.countDocuments = async (query) => {
+    assert.deepEqual(query, {});
+    return 12;
+  };
+  Book.find = (query) => ({
+    sort(sortQuery) {
+      this.query = query;
+      this.sortQuery = sortQuery;
+      return this;
+    },
+    limit(limit) {
+      if (this.query.stock) {
+        assert.equal(limit, 20);
+        assert.deepEqual(this.sortQuery, { stock: 1, title: 1 });
+        return Promise.resolve(lowStockBooks);
+      }
+
+      assert.equal(limit, 5);
+      assert.deepEqual(this.sortQuery, { sold: -1, soldCount: -1 });
+      return Promise.resolve(soldBooks);
+    },
+  });
+
+  try {
+    const res = await callController(adminController.getAdminStats, {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload.success, true);
+    assert.equal(res.payload.data.totalBooks, 12);
+    assert.equal(res.payload.data.totalOrders, 8);
+    assert.equal(res.payload.data.pendingOrders, 2);
+    assert.equal(res.payload.data.deliveredOrders, 4);
+    assert.equal(res.payload.data.cancelledOrders, 1);
+    assert.equal(res.payload.data.totalRevenueDelivered, 500000);
+    assert.equal(res.payload.data.totalRevenuePaid, 300000);
+    assert.equal(res.payload.data.todayOrders, 3);
+    assert.equal(res.payload.data.todayRevenue, 90000);
+    assert.deepEqual(res.payload.data.recentOrders, recentOrders);
+    assert.deepEqual(res.payload.data.lowStockBooks, lowStockBooks);
+    assert.equal(res.payload.data.topSellingBooks[0].title, 'SÃ¡ch bÃ¡n cháº¡y');
+    assert.equal(res.payload.data.topSellingBooks[0].totalSold, 11);
+    assert.equal(res.payload.data.revenueByDay.length, 7);
+    assert.equal(res.payload.data.revenueByDay.at(-1).revenue, 500000);
+  } finally {
+    Object.assign(Order, originalOrderMethods);
+    Object.assign(Book, originalBookMethods);
+  }
 });

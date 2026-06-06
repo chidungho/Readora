@@ -148,12 +148,6 @@ function AdminBooksPage() {
       return;
     }
 
-    console.log("[cover upload] selected file", {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    });
-
     if (!file.type.startsWith("image/")) {
       setCoverError("Chỉ nhận file ảnh.");
       return "";
@@ -169,7 +163,6 @@ function AdminBooksPage() {
 
     try {
       const response = await uploadBookCover(file);
-      console.log("[cover upload] response", response);
       const finalUrl = response.url.startsWith("http")
         ? response.url
         : `${API_ORIGIN}${response.url}`;
@@ -197,7 +190,6 @@ function AdminBooksPage() {
   };
 
   const startCamera = async () => {
-    console.log("[camera] starting");
     setCoverError("");
     setCameraMessage("");
 
@@ -214,8 +206,7 @@ function AdminBooksPage() {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "environment" },
         });
-      } catch (environmentError) {
-        console.log("[camera] error", environmentError);
+      } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
@@ -230,13 +221,11 @@ function AdminBooksPage() {
         await video.play().catch(() => {});
       }
     } catch (cameraError) {
-      console.log("[camera] error", cameraError);
       setCameraMessage(cameraError.message || "Không thể mở camera.");
     }
   };
 
   const handleCaptureCover = () => {
-    console.log("[camera] capture clicked");
     const video = videoRef.current;
 
     if (!video || !video.videoWidth) {
@@ -251,7 +240,6 @@ function AdminBooksPage() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob(async (blob) => {
-      console.log("[camera] blob created", blob && { type: blob.type, size: blob.size });
 
       if (!blob) {
         setCoverError("Không chụp được ảnh.");
@@ -259,8 +247,7 @@ function AdminBooksPage() {
       }
 
       const file = new File([blob], `book-cover-${Date.now()}.jpg`, { type: "image/jpeg" });
-      const uploadedUrl = await handleUploadCover(file);
-      console.log("[camera] uploaded", uploadedUrl);
+      await handleUploadCover(file);
       stopCamera();
     }, "image/jpeg", 0.9);
   };

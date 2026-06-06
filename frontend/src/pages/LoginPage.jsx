@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import GoogleAuthButton from "../components/GoogleAuthButton";
 import Layout from "../layouts/Layout";
-import { loginUser } from "../services/api";
+import { loginUser, loginWithGoogle } from "../services/api";
 
 function LoginPage() {
   const navigate = useNavigate();
@@ -9,6 +10,30 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const persistAuth = useCallback((data) => {
+    localStorage.setItem("readora_token", data.token);
+    localStorage.setItem("readora_user", JSON.stringify(data.user));
+    navigate(data.user?.role === "admin" ? "/admin" : "/");
+  }, [navigate]);
+
+  const handleGoogleSuccess = useCallback(async (idToken) => {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const data = await loginWithGoogle(idToken);
+      persistAuth(data);
+    } catch (authError) {
+      setError(authError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [persistAuth]);
+
+  const handleGoogleError = useCallback((authError) => {
+    setError(authError.message);
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -18,9 +43,7 @@ function LoginPage() {
     try {
       const data = await loginUser({ email, password });
 
-      localStorage.setItem("readora_token", data.token);
-      localStorage.setItem("readora_user", JSON.stringify(data.user));
-      navigate(data.user?.role === "admin" ? "/admin" : "/");
+      persistAuth(data);
     } catch (authError) {
       setError(authError.message);
     } finally {
@@ -75,6 +98,14 @@ function LoginPage() {
             >
               {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
+
+            <div className="auth-card__divider">hoặc</div>
+
+            <GoogleAuthButton
+              disabled={isSubmitting}
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+            />
 
             <p className="auth-card__switch">
               Chưa có tài khoản? <Link to="/register">Đăng ký</Link>

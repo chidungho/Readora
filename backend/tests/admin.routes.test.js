@@ -55,7 +55,7 @@ const requestApp = async (path, options = {}) => {
 };
 
 test('App mounts admin routes at /api/admin and protects them with auth', async () => {
-  const { response, payload } = await requestApp('/api/admin/reviews');
+  const { response, payload } = await requestApp('/api/admin/stats');
 
   assert.equal(response.status, 401);
   assert.deepEqual(payload, {

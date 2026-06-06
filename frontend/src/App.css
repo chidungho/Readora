@@ -2950,3 +2950,193 @@ body[data-theme="dark"] .admin-shell {
 
 
 
+
+.admin-stats--dashboard {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: stretch;
+}
+
+.admin-stats--dashboard .admin-stat {
+  min-width: 0;
+}
+
+.admin-stat--currency {
+  grid-column: span 2;
+}
+
+.admin-stats--dashboard .admin-stat strong {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+}
+
+.admin-stats--dashboard .admin-stat--currency strong {
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.admin-refreshing {
+  align-self: center;
+  color: var(--color-muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.admin-chart-panel .admin-panel__header span {
+  color: var(--color-primary-dark);
+  font-weight: 900;
+}
+
+.admin-revenue-chart {
+  height: clamp(300px, 32vw, 340px);
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.admin-dashboard-side {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-dashboard-grid .admin-panel {
+  align-content: start;
+}
+
+.admin-dashboard-grid .admin-panel__header {
+  margin-bottom: 0;
+}
+
+.admin-dashboard-grid .admin-table-wrap,
+.admin-dashboard-grid .admin-book-list,
+.admin-dashboard-grid .state-message {
+  margin-top: 0;
+}
+
+.admin-table--compact {
+  min-width: 560px;
+}
+
+.admin-table--compact td span:not(.admin-status) {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.admin-book-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-book-metric {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  padding: 10px;
+}
+
+.admin-book-metric img {
+  width: 52px;
+  height: 68px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.admin-book-metric strong,
+.admin-book-metric span {
+  display: block;
+}
+
+.admin-book-metric strong {
+  color: var(--color-text);
+  line-height: 1.25;
+}
+
+.admin-book-metric span {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.admin-book-metric b {
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+.admin-status--low-stock {
+  border-color: color-mix(in srgb, #dc2626 34%, transparent);
+  background: color-mix(in srgb, #dc2626 10%, var(--color-surface));
+  color: #b91c1c;
+}
+
+@media (max-width: 1180px) {
+  .admin-stat--currency {
+    grid-column: span 1;
+  }
+
+  .admin-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-stats--dashboard {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .admin-revenue-chart {
+    height: 300px;
+  }
+
+  .admin-book-metric {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .admin-book-metric b {
+    grid-column: 2;
+  }
+}
+
+
+
+.auth-card__divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #8b5e3c;
+  font-size: 0.9rem;
+  margin: 0.25rem 0;
+}
+
+.auth-card__divider::before,
+.auth-card__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(154, 52, 18, 0.18);
+}
+
+.google-auth,
+.google-auth__button {
+  width: 100%;
+}
+
+.google-auth__button {
+  min-height: 44px;
+}
+
+.google-auth__button.is-disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}

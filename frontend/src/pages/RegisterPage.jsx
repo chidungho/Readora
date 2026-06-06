@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import GoogleAuthButton from "../components/GoogleAuthButton";
 import Layout from "../layouts/Layout";
-import { registerUser } from "../services/api";
+import { registerUser, loginWithGoogle } from "../services/api";
 
 function RegisterPage() {
   const navigate = useNavigate();
@@ -11,6 +12,30 @@ function RegisterPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const persistAuth = useCallback((data) => {
+    localStorage.setItem("readora_token", data.token);
+    localStorage.setItem("readora_user", JSON.stringify(data.user));
+    navigate("/");
+  }, [navigate]);
+
+  const handleGoogleSuccess = useCallback(async (idToken) => {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const data = await loginWithGoogle(idToken);
+      persistAuth(data);
+    } catch (authError) {
+      setError(authError.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [persistAuth]);
+
+  const handleGoogleError = useCallback((authError) => {
+    setError(authError.message);
+  }, []);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -19,9 +44,7 @@ function RegisterPage() {
     try {
       const data = await registerUser({ name, email, password });
 
-      localStorage.setItem("readora_token", data.token);
-      localStorage.setItem("readora_user", JSON.stringify(data.user));
-      navigate("/");
+      persistAuth(data);
     } catch (authError) {
       setError(authError.message);
     } finally {
@@ -89,6 +112,14 @@ function RegisterPage() {
             >
               {isSubmitting ? "Đang đăng ký..." : "Đăng ký"}
             </button>
+
+            <div className="auth-card__divider">hoặc</div>
+
+            <GoogleAuthButton
+              disabled={isSubmitting}
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+            />
 
             <p className="auth-card__switch">
               Đã có tài khoản? <Link to="/login">Đăng nhập</Link>

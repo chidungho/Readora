@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const User = require('../src/models/user.model');
+const googleAuthService = require('../src/services/googleAuth.service');
 const authController = require('../src/controllers/auth.controller');
 const authMiddleware = require('../src/middlewares/auth.middleware');
 
@@ -70,6 +71,18 @@ const withMockedUserMethod = async (methodName, mockFn, action) => {
   }
 };
 
+
+const withMockedGoogleVerify = async (mockFn, action) => {
+  const originalVerify = googleAuthService.verifyGoogleIdToken;
+  googleAuthService.verifyGoogleIdToken = mockFn;
+
+  try {
+    return await action();
+  } finally {
+    googleAuthService.verifyGoogleIdToken = originalVerify;
+  }
+};
+
 const withJwtSecret = async (value, action) => {
   const originalValue = process.env.JWT_SECRET;
   process.env.JWT_SECRET = value;
@@ -108,8 +121,8 @@ test('User schema uses requested fields, role default, and timestamps', () => {
   assert.equal(User.schema.options.timestamps, true);
 });
 
-test('Auth controller exports register, login, and getProfile', () => {
-  for (const handler of ['register', 'login', 'getProfile']) {
+test('Auth controller exports register, login, googleLogin, and getProfile', () => {
+  for (const handler of ['register', 'login', 'googleLogin', 'getProfile']) {
     assert.equal(typeof authController[handler], 'function');
   }
 });
@@ -231,6 +244,105 @@ test('login returns 401 for an invalid password', async () => {
       success: false,
       message: 'Invalid email or password',
     });
+  });
+});
+
+
+test('googleLogin creates a user when Google email does not exist', async () => {
+  const createdUser = {
+    _id: 'google-user-1',
+    name: 'Google User',
+    email: 'google@example.com',
+    role: 'user',
+    avatar: 'https://example.com/avatar.png',
+    password: 'hashed-google-password',
+    toObject() {
+      return { ...this };
+    },
+  };
+  let receivedCreateData;
+
+  await withJwtSecret('test-secret', async () => {
+    await withMockedGoogleVerify(async (idToken) => {
+      assert.equal(idToken, 'google-id-token');
+      return {
+        email: 'Google@Example.com',
+        name: 'Google User',
+        avatar: 'https://example.com/avatar.png',
+      };
+    }, async () => {
+      await withMockedUserMethod('findOne', async (query) => {
+        assert.deepEqual(query, { email: 'google@example.com' });
+        return null;
+      }, async () => {
+        await withMockedUserMethod('create', async (data) => {
+          receivedCreateData = data;
+          return createdUser;
+        }, async () => {
+          const res = await callController(authController.googleLogin, {
+            body: { idToken: 'google-id-token' },
+          });
+
+          assert.equal(res.statusCode, 200);
+          assert.equal(res.payload.success, true);
+          assert.equal(receivedCreateData.email, 'google@example.com');
+          assert.equal(receivedCreateData.name, 'Google User');
+          assert.equal(receivedCreateData.avatar, 'https://example.com/avatar.png');
+          assert.ok(receivedCreateData.password.startsWith('$2'));
+          assert.equal(res.payload.data.user.password, undefined);
+          assert.equal(jwt.verify(res.payload.data.token, 'test-secret').id, 'google-user-1');
+        });
+      });
+    });
+  });
+});
+
+test('googleLogin logs in an existing user without creating a duplicate', async () => {
+  const foundUser = {
+    _id: 'google-user-2',
+    name: 'Existing User',
+    email: 'existing@example.com',
+    role: 'user',
+    password: 'hashed-password',
+    toObject() {
+      return { ...this };
+    },
+  };
+
+  await withJwtSecret('test-secret', async () => {
+    await withMockedGoogleVerify(async () => ({
+      email: 'existing@example.com',
+      name: 'Google Name',
+      avatar: '',
+    }), async () => {
+      await withMockedUserMethod('findOne', async (query) => {
+        assert.deepEqual(query, { email: 'existing@example.com' });
+        return foundUser;
+      }, async () => {
+        await withMockedUserMethod('create', async () => {
+          throw new Error('User.create should not be called');
+        }, async () => {
+          const res = await callController(authController.googleLogin, {
+            body: { idToken: 'google-id-token' },
+          });
+
+          assert.equal(res.statusCode, 200);
+          assert.equal(res.payload.data.user.email, 'existing@example.com');
+          assert.equal(res.payload.data.user.password, undefined);
+          assert.equal(jwt.verify(res.payload.data.token, 'test-secret').id, 'google-user-2');
+        });
+      });
+    });
+  });
+});
+
+test('googleLogin returns 400 when idToken is missing', async () => {
+  const res = await callController(authController.googleLogin, { body: {} });
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.payload, {
+    success: false,
+    message: 'Google ID token is required',
   });
 });
 

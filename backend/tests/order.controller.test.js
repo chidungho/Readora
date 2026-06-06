@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict');
+const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const loadOrder = () => require('../src/models/order.model');
@@ -222,9 +222,10 @@ test('createOrder saves the authenticated user, cart items, address, total, and 
   }));
 });
 
-test('createOrder saves bank transfer orders as unpaid', async () => {
+test('createOrder saves bank transfer orders as unpaid without notifying admin', async () => {
   const orderController = loadOrderController();
   const book = createMockBook();
+  const emittedEvents = [];
   const createdOrder = {
     _id: 'order-bank-1',
     user: 'user-1',
@@ -247,11 +248,13 @@ test('createOrder saves bank transfer orders as unpaid', async () => {
     const res = await callController(orderController.createOrder, {
       user: { _id: 'user-1' },
       body: { items: cartItems, shippingAddress, paymentMethod: 'bank_transfer' },
+      app: { get: () => ({ emit: (...args) => emittedEvents.push(args) }) },
     });
 
     assert.equal(res.statusCode, 201);
     assert.equal(book.stock, 8);
     assert.equal(book.sold, 3);
+    assert.deepEqual(emittedEvents.map(([event]) => event), ['books:stock-updated']);
     assert.deepEqual(res.payload.data, createdOrder);
   }));
 });

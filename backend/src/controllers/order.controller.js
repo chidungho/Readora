@@ -244,7 +244,10 @@ const createOrder = async (req, res, next) => {
       await order.populate('user', 'name email');
     }
 
-    emitNewOrder(req, order);
+    if (paymentMethod === 'cod') {
+      emitNewOrder(req, order);
+    }
+
     emitStockUpdated(req, changedBooks);
 
     return res.status(201).json({ success: true, message: 'Order created successfully', data: order });
@@ -313,6 +316,7 @@ module.exports = {
   buildStockPayload,
   createOrderCode,
   createOrder,
+  emitNewOrder,
   emitStockUpdated,
   getMyOrders,
   getOrderById,
