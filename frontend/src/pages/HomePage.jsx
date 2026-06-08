@@ -3,6 +3,21 @@ import BookCard from "../components/BookCard";
 import Layout from "../layouts/Layout";
 import { getBooks } from "../services/api";
 
+const heroImages = [
+  {
+    src: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=520&q=80",
+    alt: "Stack of books on a cozy reading table",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?auto=format&fit=crop&w=520&q=80",
+    alt: "Open books arranged on shelves",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=520&q=80",
+    alt: "Reader browsing books in a warm library",
+  },
+];
+
 function HomePage() {
   const [featuredBooks, setFeaturedBooks] = useState([]);
   const [categoryCount, setCategoryCount] = useState(0);
@@ -88,18 +103,11 @@ function HomePage() {
           </div>
 
           <div className="hero-visual fade-up">
-            <div className="hero-book hero-book--front">
-              <span>Tiểu thuyết</span>
-              <strong>Dòng Sông Ký Ức</strong>
-            </div>
-            <div className="hero-book hero-book--middle">
-              <span>Kỹ năng</span>
-              <strong>Nghệ Thuật Tập Trung</strong>
-            </div>
-            <div className="hero-book hero-book--back">
-              <span>Khoa học</span>
-              <strong>Vũ Trụ Trong Túi Áo</strong>
-            </div>
+            {heroImages.map((image, index) => (
+              <figure className="hero-image-card" key={image.src}>
+                <img src={image.src} alt={image.alt} loading={index === 0 ? "eager" : "lazy"} />
+              </figure>
+            ))}
           </div>
         </div>
       </section>

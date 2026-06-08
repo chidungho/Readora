@@ -335,6 +335,8 @@ export const getMyOrders = async (options = {}) => {
   return Array.isArray(data) ? data : [];
 };
 
+export const getOrderById = (id, options = {}) => requestWithAuth(`/orders/${id}`, options);
+
 export const getAdminBooksPage = async (options = {}) => {
   const { params, fetchOptions } = extractBookRequestOptions({
     limit: 1000,
@@ -400,6 +402,9 @@ export const getAdminOrders = async (options = {}) => {
 
   return Array.isArray(data) ? data : [];
 };
+
+export const getAdminOrderById = (id, options = {}) =>
+  requestWithAuth(`/admin/orders/${id}`, options);
 
 export const updateAdminOrderStatus = async (id, statusOrPayload) => {
   const payload =

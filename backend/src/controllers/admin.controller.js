@@ -48,6 +48,19 @@ const buildUserOrderUpdatedPayload = (order) => {
   };
 };
 
+const buildUserOrderStatusUpdatedPayload = (order) => {
+  const statusLabel = orderStatusLabels[order.status] || order.status;
+
+  return {
+    orderId: order._id,
+    orderCode: order.orderCode,
+    status: order.status,
+    paymentStatus: order.paymentStatus,
+    message: `\u0110\u01a1n #${order.orderCode} \u0111\u00e3 chuy\u1ec3n sang: ${statusLabel}`,
+    updatedAt: order.updatedAt || new Date(),
+  };
+};
+
 const emitUserOrderUpdated = (req, order) => {
   const io = req.app ? req.app.get('io') : null;
 
@@ -56,15 +69,19 @@ const emitUserOrderUpdated = (req, order) => {
   }
 
   const payload = buildUserOrderUpdatedPayload(order);
+  const statusPayload = buildUserOrderStatusUpdatedPayload(order);
   const userId = order.user?._id || order.user;
 
   if (userId) {
     io.to(`user:${userId}`).emit('user:order-updated', payload);
+    io.to(`user:${userId}`).emit('user:order-status-updated', statusPayload);
   } else {
     io.emit('user:order-updated', payload);
+    io.emit('user:order-status-updated', statusPayload);
   }
 
   console.log('[socket emit] user:order-updated', order.orderCode, order.status);
+  console.log('[socket emit] user:order-status-updated', order.orderCode, order.status);
 };
 
 const startOfDay = (date) => {

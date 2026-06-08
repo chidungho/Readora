@@ -227,11 +227,20 @@ test('updateAdminOrderStatus updates order status, emits realtime event, and ret
     }
   });
 
-  assert.equal(emitted.length, 1);
+  assert.equal(emitted.length, 2);
   assert.equal(emitted[0].eventName, 'user:order-updated');
   assert.equal(emitted[0].payload.orderCode, 'ORD001');
   assert.equal(emitted[0].payload.status, 'shipped');
   assert.equal(emitted[0].payload.order, updatedOrder);
+  assert.equal(emitted[1].eventName, 'user:order-status-updated');
+  assert.deepEqual(emitted[1].payload, {
+    orderId: updatedOrder._id,
+    orderCode: 'ORD001',
+    status: 'shipped',
+    paymentStatus: updatedOrder.paymentStatus,
+    message: '\u0110\u01a1n #ORD001 \u0111\u00e3 chuy\u1ec3n sang: \u0110ang giao',
+    updatedAt: updatedOrder.updatedAt,
+  });
 });
 
 test('updateAdminOrderStatus updates payment status and returns the order', async () => {

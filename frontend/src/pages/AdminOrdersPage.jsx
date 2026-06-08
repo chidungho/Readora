@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getAdminOrders, updateAdminOrderStatus } from "../services/api";
 import { socket } from "../services/socket";
 
@@ -180,6 +181,7 @@ function AdminOrdersPage() {
                   <th>Tổng tiền</th>
                   <th>Thanh toán</th>
                   <th>Trạng thái</th>
+                  <th>Chi tiết</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,6 +231,11 @@ function AdminOrdersPage() {
                           ))}
                         </select>
                       </label>
+                    </td>
+                    <td>
+                      <Link className="button button--secondary admin-order-detail-link" to={`/admin/orders/${order._id}`}>
+                        Xem chi tiết
+                      </Link>
                     </td>
                   </tr>
                 ))}

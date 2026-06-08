@@ -8,6 +8,20 @@ export const socket = io(socketURL, {
 });
 
 
+export const connectUserSocket = () => {
+  const token = window.localStorage.getItem("readora_token");
+
+  if (token) {
+    socket.auth = { token };
+  }
+
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+  return socket;
+};
+
 export const connectAdminSocket = () => {
   if (!socket.connected) {
     socket.connect();

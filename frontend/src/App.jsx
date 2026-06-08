@@ -16,6 +16,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import OrdersPage from "./pages/OrdersPage";
 import RegisterPage from "./pages/RegisterPage";
 
@@ -46,6 +47,14 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/orders/:id"
+            element={
+              <ProtectedRoute>
+                <OrderDetailPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route
@@ -59,6 +68,7 @@ function App() {
             <Route index element={<AdminDashboardPage />} />
             <Route path="books" element={<AdminBooksPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="orders/:id" element={<OrderDetailPage admin />} />
             <Route path="reviews" element={<AdminReviewsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />

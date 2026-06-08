@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import Layout from "../layouts/Layout";
 import { FALLBACK_COVER_IMAGE, cancelOrder, getMyOrders } from "../services/api";
 import OrderItemReview from "../components/OrderItemReview";
-import { socket } from "../services/socket";
+import { connectUserSocket, socket } from "../services/socket";
 
 const statusLabels = {
   pending: "Chờ xác nhận",
@@ -89,32 +89,52 @@ function OrdersPage() {
     }
 
     const handleOrderUpdated = (payload) => {
+      const payloadOrder = payload.order || payload;
+      const payloadOrderId = String(payload.orderId || payloadOrder?._id || "");
 
-      const updatedOrder = payload.order || payload;
-
-      if (!updatedOrder?._id || !orders.some((order) => order._id === updatedOrder._id)) {
+      if (!payloadOrderId || !orders.some((order) => String(order._id) === payloadOrderId)) {
         return;
       }
 
-      const statusLabel = statusLabels[updatedOrder.status] || updatedOrder.status;
+      let nextOrder;
 
       setOrders((previousOrders) =>
-        previousOrders.map((order) => (order._id === updatedOrder._id ? updatedOrder : order)),
+        previousOrders.map((order) => {
+          if (String(order._id) !== payloadOrderId) {
+            return order;
+          }
+
+          nextOrder = payload.order
+            ? payload.order
+            : {
+                ...order,
+                status: payload.status ?? order.status,
+                paymentStatus: payload.paymentStatus ?? order.paymentStatus,
+                updatedAt: payload.updatedAt ?? order.updatedAt,
+              };
+
+          return nextOrder;
+        }),
       );
+
+      const statusLabel = statusLabels[nextOrder.status] || nextOrder.status;
+
       setFeedbackMessage(
-        `\u0110\u01a1n #${updatedOrder.orderCode} \u0111\u00e3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i: ${statusLabel}`,
+        payload.message || `\u0110\u01a1n #${nextOrder.orderCode} \u0111\u00e3 chuy\u1ec3n sang: ${statusLabel}`,
       );
     };
 
-    socket.connect();
+    connectUserSocket();
 
     if (userId) {
       socket.emit("user:join", { userId });
     }
 
+    socket.on("user:order-status-updated", handleOrderUpdated);
     socket.on("user:order-updated", handleOrderUpdated);
 
     return () => {
+      socket.off("user:order-status-updated", handleOrderUpdated);
       socket.off("user:order-updated", handleOrderUpdated);
     };
   }, [error, loading, orders]);
@@ -291,6 +311,9 @@ function OrdersPage() {
                     <div className="order-card__total">
                       <span>Tổng tiền</span>
                       <strong>{formatCurrency(order.totalAmount)}</strong>
+                      <Link className="button button--secondary order-card__cancel" to={`/orders/${order._id}`}>
+                        Xem chi tiết
+                      </Link>
                       {isUnpaidBankTransferOrder(order) && (
                         <Link
                           className="button button--primary order-card__cancel"
