@@ -1,21 +1,26 @@
 import { useCallback, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import GoogleAuthButton from "../components/GoogleAuthButton";
 import Layout from "../layouts/Layout";
 import { loginUser, loginWithGoogle } from "../services/api";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const redirectPath = location.state?.from?.pathname;
+
   const persistAuth = useCallback((data) => {
     localStorage.setItem("readora_token", data.token);
     localStorage.setItem("readora_user", JSON.stringify(data.user));
-    navigate(data.user?.role === "admin" ? "/admin" : "/");
-  }, [navigate]);
+    navigate(redirectPath || (data.user?.role === "admin" ? "/admin" : "/"), {
+      replace: true,
+    });
+  }, [navigate, redirectPath]);
 
   const handleGoogleSuccess = useCallback(async (idToken) => {
     setError("");
@@ -58,6 +63,12 @@ function LoginPage() {
           <form className="auth-card" onSubmit={handleSubmit}>
             <p className="eyebrow">Tài khoản</p>
             <h1>Đăng nhập</h1>
+
+            {location.state?.message && (
+              <p className="auth-card__notice" role="status">
+                {location.state.message}
+              </p>
+            )}
 
             {error && (
               <p className="auth-card__error" role="alert">
